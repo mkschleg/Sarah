@@ -38,8 +38,8 @@ wcwidth = "==0.2.5"
 zipp = "==3.7.0"
 Pillow = "==9.0.1"
 Pygments = "==2.11.2"
-jbw = {editable = true, path = "./jelly-bean-world/api/python"}
-dopamine-rl = {editable = true, path = "./dopamine"}
+dopamine-rl = {editable = true, path = "./libs/dopamine"}
+jbw = {editable = true, path = "./libs/jelly-bean-world/api/python"}
 
 [dev-packages]
 

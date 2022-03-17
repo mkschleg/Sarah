@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "d3d7259325bccc6fbf251bae28b11afe299f6e66ffb61e2b422b7e0bb8d2af8a"
+            "sha256": "d6b43051f76adf93a219c015be6cc3ce182f3e04b6bd50c8c94206866ebcee95"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -163,7 +163,7 @@
         },
         "dopamine-rl": {
             "editable": true,
-            "path": "./dopamine"
+            "path": "./libs/dopamine"
         },
         "enum34": {
             "hashes": [
@@ -293,9 +293,7 @@
             "version": "==1.44.0"
         },
         "gym": {
-            "extras": [
-                "atari"
-            ],
+            "extras": [],
             "hashes": [
                 "sha256:d0f9b9da34edbdace421c9442fc9205d03b8d15d0fb451053c766cde706d40e0"
             ],
@@ -390,7 +388,7 @@
         },
         "jbw": {
             "editable": true,
-            "path": "./jelly-bean-world/api/python"
+            "path": "./libs/jelly-bean-world/api/python"
         },
         "jedi": {
             "hashes": [
