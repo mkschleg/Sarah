@@ -41,15 +41,20 @@ import optax
 import tensorflow as tf
 
 
-NATURE_DQN_OBSERVATION_SHAPE = dqn_agent.NATURE_DQN_OBSERVATION_SHAPE
-NATURE_DQN_DTYPE = jnp.uint8
-NATURE_DQN_STACK_SIZE = dqn_agent.NATURE_DQN_STACK_SIZE
-identity_epsilon = dqn_agent.identity_epsilon
+# NATURE_DQN_OBSERVATION_SHAPE = dqn_agent.NATURE_DQN_OBSERVATION_SHAPE
+# NATURE_DQN_DTYPE = jnp.uint8
+# NATURE_DQN_STACK_SIZE = dqn_agent.NATURE_DQN_STACK_SIZE
+# identity_epsilon = dqn_agent.identity_epsilon
 
 
 
-def create_optimizer(name='adam', learning_rate=6.25e-5, beta1=0.9, beta2=0.999,
-                     eps=1.5e-4, centered=False):
+# def create_optimizer(name='adam',
+#                      learning_rate=6.25e-5,
+#                      beta1=0.9,
+#                      beta2=0.999,
+#                      eps=1.5e-4,
+#                      centered=False):
+def create_optimizer(args)
   """Create an optimizer for training.
 
   Currently, only the Adam and RMSProp optimizers are supported.
@@ -65,15 +70,27 @@ def create_optimizer(name='adam', learning_rate=6.25e-5, beta1=0.9, beta2=0.999,
   Returns:
     An optax optimizer.
   """
+  name = args["name"]
+  learning_rate = args["learning_rate"]
+  eps = args["eps"]
   if name == 'adam':
-    logging.info('Creating Adam optimizer with settings lr=%f, beta1=%f, '
-                 'beta2=%f, eps=%f', learning_rate, beta1, beta2, eps)
-    return optax.adam(learning_rate, b1=beta1, b2=beta2, eps=eps)
+      beta1 = args["beta1"]
+      beta2 = args["beta2"]
+      logging.info('Creating Adam optimizer with settings lr=%f, beta1=%f, '
+                   'beta2=%f, eps=%f', learning_rate, beta1, beta2, eps)
+      return optax.adam(learning_rate,
+                        b1=beta1,
+                        b2=beta2,
+                        eps=eps)
   elif name == 'rmsprop':
-    logging.info('Creating RMSProp optimizer with settings lr=%f, beta2=%f, '
-                 'eps=%f', learning_rate, beta2, eps)
-    return optax.rmsprop(learning_rate, decay=beta2, eps=eps,
-                         centered=centered)
+      decay = args["decay"]
+      centered = args["centered"]
+      logging.info('Creating RMSProp optimizer with settings lr=%f, decay=%f, '
+                   'eps=%f', learning_rate, decay, eps)
+      return optax.rmsprop(learning_rate,
+                           decay=decay,
+                           eps=eps,
+                           centered=centered)
   else:
     raise ValueError('Unsupported optimizer {}'.format(name))
 
@@ -200,26 +217,36 @@ class JaxDQNAgent(object):
 
   def __init__(self,
                num_actions,
-               observation_shape=NATURE_DQN_OBSERVATION_SHAPE,
-               observation_dtype=NATURE_DQN_DTYPE,
-               stack_size=NATURE_DQN_STACK_SIZE,
-               network=networks.NatureDQNNetwork,
-               gamma=0.99,
-               update_horizon=1,
-               min_replay_history=20000,
-               update_period=4,
-               target_update_period=8000,
-               epsilon_fn=linearly_decaying_epsilon,
-               epsilon_train=0.01,
-               epsilon_eval=0.001,
-               epsilon_decay_period=250000,
-               eval_mode=False,
-               optimizer='adam',
-               summary_writer=None,
-               summary_writing_frequency=500,
-               allow_partial_reload=False,
-               seed=None,
-               loss_type='huber',
+               observation_shape,          # =NATURE_DQN_OBSERVATION_SHAPE,
+               observation_dtype,          # =NATURE_DQN_DTYPE,
+               stack_size,                 # =NATURE_DQN_STACK_SIZE,
+
+               network,                    # =networks.NatureDQNNetwork,
+
+               gamma,                      # =0.99,
+               update_horizon,             # =1,
+               min_replay_history,         # =20000,
+
+               update_period,              # =4,
+               target_update_period,       # =8000,
+
+               epsilon_fn,                 # =linearly_decaying_epsilon,
+               epsilon_train,              # =0.01,
+               epsilon_eval,               # =0.001,
+               epsilon_decay_period,       # =250000,
+
+               eval_mode,                  # =False,
+
+               optimizer,                  # ='adam',
+
+               summary_writer,             # =None,
+               summary_writing_frequency,  # =500,
+
+
+               seed,                       # =None,
+               loss_type,                  # ='huber',
+               
+               allow_partial_reload=false,
                preprocess_fn=None):
     """Initializes the agent and constructs the necessary components.
 
