@@ -1,0 +1,36 @@
+# Hyperparameters for a simple DQN-style MountainCar agent. The hyperparameters
+# chosen achieve reasonable performance.
+import Sarah.envs.atari_lib
+import Sarah.utils.runner
+import Sarah.agents.DQN
+import Sarah.networks
+import dopamine.replay_memory.circular_replay_buffer
+import flax
+
+create_runner.schedule = 'episodic'
+create_agent.debug_mode = True
+EpisodicRunner.episodes_per_phase = 10
+EpisodicRunner.max_steps_per_phase = 100000
+EpisodicRunner.seed = 1029321
+
+
+EpisodicRunner.agent_name = 'DQN'
+SarahDQNAgent.gamma = 0.99
+SarahDQNAgent.update_horizon = 1
+SarahDQNAgent.min_replay_history = 20000
+SarahDQNAgent.update_period = 4
+SarahDQNAgent.target_update_period = 8000
+SarahDQNAgent.optimizer = 'adam'
+
+create_optimizer.learning_rate = 6.25e-5
+create_optimizer.eps = 1.5e-4
+
+OutOfGraphReplayBuffer.replay_capacity = 1000000
+OutOfGraphReplayBuffer.batch_size = 32
+
+EpisodicRunner.create_environment_fn = @Sarah.envs.atari_lib.AtariGame
+AtariGame.game_name = 'Pong'
+AtariGame.repeat_action_probability = 0.0
+EpisodicRunner.max_steps_per_episode = 27000  # Default max episode length.
+
+

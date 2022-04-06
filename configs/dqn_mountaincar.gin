@@ -1,0 +1,38 @@
+# Hyperparameters for a simple DQN-style MountainCar agent. The hyperparameters
+# chosen achieve reasonable performance.
+import dopamine.discrete_domains.gym_lib
+import Sarah.utils.runner
+import Sarah.agents.DQN
+import Sarah.networks
+import dopamine.replay_memory.circular_replay_buffer
+import flax
+
+SarahDQNAgent.observation_shape = %gym_lib.MOUNTAINCAR_OBSERVATION_SHAPE
+SarahDQNAgent.observation_dtype = %jax_networks.MOUNTAINCAR_OBSERVATION_DTYPE
+SarahDQNAgent.stack_size = %gym_lib.MOUNTAINCAR_STACK_SIZE
+SarahDQNAgent.network = @Sarah.networks.CustClassicControlDQNNetwork
+SarahDQNAgent.gamma = 0.99
+SarahDQNAgent.update_horizon = 1
+SarahDQNAgent.min_replay_history = 500
+SarahDQNAgent.update_period = 4
+SarahDQNAgent.target_update_period = 100
+SarahDQNAgent.epsilon_fn = @dqn_agent.identity_epsilon
+SarahDQNAgent.optimizer = 'adam'
+create_optimizer.learning_rate = 0.001
+create_optimizer.eps = 3.125e-4
+
+ClassicControlDQNNetwork.min_vals = %sarah_networks.MOUNTAINCAR_MIN_VALS
+ClassicControlDQNNetwork.max_vals = %sarah_networks.MOUNTAINCAR_MAX_VALS
+
+create_gym_environment.environment_name = 'MountainCar'
+create_gym_environment.version = 'v0'
+create_runner.schedule = 'episodic'
+create_agent.debug_mode = True
+EpisodicRunner.agent_name = 'DQN'
+EpisodicRunner.create_environment_fn = @gym_lib.create_gym_environment
+EpisodicRunner.num_iterations = 1
+EpisodicRunner.training_steps = 1000000
+EpisodicRunner.max_steps_per_episode = 10000  # Default max episode length.
+
+OutOfGraphReplayBuffer.replay_capacity = 50000
+OutOfGraphReplayBuffer.batch_size = 128
