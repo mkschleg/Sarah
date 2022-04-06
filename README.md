@@ -7,3 +7,24 @@ You need to clone jelly-bean-world and dopamine into a libs folder. Then you use
 Then to run a long running agent and measure the memory of jelly bean world. Use `./mem_stat.sh <steps>` where `<steps>` is the number of steps to run. If -1 is passed in the agent will run forever.
 
 
+## Install dependencies
+
+First run
+```
+git submodule update --init --recursive
+cd libs/jelley-bean-world
+git submodule update --init --recursive
+cd ../..
+```
+
+to install all the submodules.
+
+Next make sure you have installed python v3.9.10 (pyenv is recommended), and pipenv.
+
+With pipenv installed run:
+```
+pipenv install
+```
+
+Which should create a new virtual env and install all the necessary packages.
+
