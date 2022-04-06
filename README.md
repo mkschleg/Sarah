@@ -26,5 +26,13 @@ With pipenv installed run:
 pipenv install
 ```
 
-Which should create a new virtual env and install all the necessary packages.
+Which should create a new virtual env and install all the necessary packages. For atari games download the roms from:
 
+```
+http://www.atarimania.com/rom_collection_archive_atari_2600_roms.html
+```
+
+extract and install with
+```
+ale-import-roms location/to/extracted/roms
+```
