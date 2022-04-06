@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "47081dcea6306e14e22e4670b72dbccc92689d8a07e472394f4ce72d237df239"
+            "sha256": "4b1257ddd3883a6a88737ae4aa32a809b89bde0291535d0bef2f87c05dc4d8e2"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -198,10 +198,10 @@
         },
         "flax": {
             "hashes": [
-                "sha256:35fc442375cd4e32aaaec688f8708b80172f23e65f35cc043c074fc0d16b388c",
-                "sha256:9d0ea684fb20f4b2e7562ddcc5a95b6563d085bc567f5bfd3343d37237f4cc30"
+                "sha256:c8a997afc5a482a5d7473586ad74113e3b067f1e19afcb8096ac482ecc780a59",
+                "sha256:eadc0126292bdfdd5ddb21b29c994db18544c6ff4a33eae54d4a59331db5a08f"
             ],
-            "version": "==0.4.0"
+            "version": "==0.4.1"
         },
         "fonttools": {
             "hashes": [
@@ -301,9 +301,7 @@
             "version": "==1.44.0"
         },
         "gym": {
-            "extras": [
-                "atari"
-            ],
+            "extras": [],
             "hashes": [
                 "sha256:d0f9b9da34edbdace421c9442fc9205d03b8d15d0fb451053c766cde706d40e0"
             ],
@@ -358,11 +356,11 @@
         },
         "importlib-resources": {
             "hashes": [
-                "sha256:33a95faed5fc19b4bc16b29a6eeae248a3fe69dd55d4d229d2b480e23eeaad45",
-                "sha256:d756e2f85dd4de2ba89be0b21dba2a3bbec2e871a42a3a16719258a11f87506b"
+                "sha256:1b93238cbf23b4cde34240dd8321d99e9bf2eb4bc91c0c99b2886283e7baad85",
+                "sha256:a9dd72f6cc106aeb50f6e66b86b69b454766dd6e39b69ac68450253058706bcc"
             ],
-            "markers": "python_version >= '3.6'",
-            "version": "==5.4.0"
+            "markers": "python_version >= '3.7'",
+            "version": "==5.6.0"
         },
         "ipython": {
             "hashes": [
@@ -474,6 +472,7 @@
             "hashes": [
                 "sha256:069407eac2e20ea8f18212d28c6598db31014e7b8a77febc92e762ec133c3226",
                 "sha256:9c1e623340ccafe3a10a2abbc90f59593ff29f0c854f4ddb65b6220d9d998fb4",
+                "sha256:b0acfcfbd1f6d411f654cf6ec4f09cecf0f80b3480e4c9f834d1dcb1f8bd6907",
                 "sha256:b61dedc1b941f43acca1fa15df0a6669c6c3983197c6f3226ae03a766281dd37",
                 "sha256:b7de34393ed46c6cf7b22178d0d43cec2f2dab2f5f95450520a47fc1cf2df5ac",
                 "sha256:bcaffec6b1ab9486811670db7af29d4a361830d6cb75da4f5672e884aa973bda",
@@ -971,6 +970,10 @@
             "index": "pypi",
             "version": "==3.0.7"
         },
+        "pyrlenvs": {
+            "git": "ssh://git@github.com/andnp/PyRlEnvs",
+            "ref": "9904e5f52b8bba9b6e10f38d9e4031d8cef60a0d"
+        },
         "python-dateutil": {
             "hashes": [
                 "sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86",
@@ -1045,11 +1048,11 @@
         },
         "setuptools": {
             "hashes": [
-                "sha256:6599055eeb23bfef457d5605d33a4d68804266e6cb430b0fb12417c5efeae36c",
-                "sha256:782ef48d58982ddb49920c11a0c5c9c0b02e7d7d1c2ad0aa44e1a1e133051c96"
+                "sha256:8f4813dd6a4d6cc17bde85fb2e635fe19763f96efbb0ddf5575562e5ee0bc47a",
+                "sha256:c3d4e2ab578fbf83775755cd76dae73627915a22832cf4ea5de895978767833b"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==60.10.0"
+            "version": "==61.2.0"
         },
         "six": {
             "hashes": [
