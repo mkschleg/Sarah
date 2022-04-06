@@ -1,0 +1,6 @@
+[submodule "libs/dopamine"]
+	path = libs/dopamine
+	url = git@github.com:google/dopamine.git
+[submodule "libs/jelly-bean-world"]
+	path = libs/jelly-bean-world
+	url = git@github.com:eaplatanios/jelly-bean-world.git
