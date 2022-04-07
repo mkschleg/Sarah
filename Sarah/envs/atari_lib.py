@@ -52,6 +52,8 @@ from gym.spaces.box import Box
 import numpy as np
 import tensorflow as tf
 
+import jax
+
 
 NATURE_DQN_OBSERVATION_SHAPE = (84, 84)  # Size of downscaled Atari 2600 frame.
 NATURE_DQN_DTYPE = tf.uint8  # DType of Atari 2600 observations.
@@ -151,11 +153,16 @@ class AtariGame(object):
     env = gym.make(full_game_name,
                    mode=mode,
                    difficulty=difficulty,
-                   repeat_action_probability=repeat_action_probability,
+                   repeat_action_probability=0.0,
                    frameskip=1)
+
     self.environment = env.unwrapped
     self.environment.reset(seed=seed)
+    self._rng = jax.random.PRNGKey(seed)
     
+    # need to do repeat actions outside the gym layer to pickle rn rng...
+
+    self.repeat_action_probability = repeat_action_probability
     self.terminal_on_life_loss = terminal_on_life_loss
     self.frame_skip = frame_skip
     self.frame_pool = frame_pool

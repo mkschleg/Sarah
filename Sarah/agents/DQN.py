@@ -31,7 +31,8 @@ from absl import logging
 from dopamine.jax.agents.dqn.dqn_agent import create_optimizer
 from dopamine.jax import losses
 from dopamine.jax import networks
-from dopamine.replay_memory import circular_replay_buffer
+from Sarah import replay
+# from dopamine.replay_memory import circular_replay_buffer
 from dopamine.replay_memory import prioritized_replay_buffer
 from flax import core
 from flax.training import checkpoints
@@ -341,7 +342,8 @@ class SarahDQNAgent(object):
 
   def _build_replay_buffer(self):
     """Creates the replay buffer used by the agent."""
-    return circular_replay_buffer.OutOfGraphReplayBuffer(
+    # return circular_replay_buffer.OutOfGraphReplayBuffer(
+    return replay.ReplayBuffer(
         observation_shape=self.observation_shape,
         stack_size=self.stack_size,
         update_horizon=self.update_horizon,
@@ -349,7 +351,7 @@ class SarahDQNAgent(object):
         observation_dtype=self.observation_dtype)
 
   def _sample_from_replay_buffer(self):
-    samples = self._replay.sample_transition_batch()
+    self._rng, samples = self._replay.sample_transition_batch(self._rng)
     types = self._replay.get_transition_elements()
     self.replay_elements = collections.OrderedDict()
     for element, element_type in zip(samples, types):
