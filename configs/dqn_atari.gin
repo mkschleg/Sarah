@@ -4,7 +4,7 @@ import Sarah.envs.atari_lib
 import Sarah.utils.runner
 import Sarah.agents.DQN
 import Sarah.networks
-import dopamine.replay_memory.circular_replay_buffer
+import Sarah.replay
 import flax
 
 create_runner.schedule = 'episodic'
@@ -25,8 +25,8 @@ SarahDQNAgent.optimizer = 'adam'
 create_optimizer.learning_rate = 6.25e-5
 create_optimizer.eps = 1.5e-4
 
-OutOfGraphReplayBuffer.replay_capacity = 1000000
-OutOfGraphReplayBuffer.batch_size = 32
+ReplayBuffer.replay_capacity = 1000000
+ReplayBuffer.batch_size = 32
 
 EpisodicRunner.create_environment_fn = @Sarah.envs.atari_lib.AtariGame
 AtariGame.game_name = 'Pong'
