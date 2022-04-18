@@ -17,15 +17,18 @@ r"""The entry point for running a Dopamine agent.
 
 """
 
+import gin
+import hashlib
+import os
+import shutil
+import filecmp
+import pickle
+
 from absl import app
 from absl import flags
 from absl import logging
 
-# from Sarah.utils import runner
 from Sarah.utils import episodic_runner
-import gin
-import tensorflow as tf
-
 
 flags.DEFINE_string('base_dir', None,
                     'Base directory to host all required sub-directories.')
@@ -43,7 +46,7 @@ FLAGS = flags.FLAGS
 
 
 @gin.configurable
-def create_runner(base_dir, schedule='continuous_train_and_eval'):
+def create_runner(base_dir, schedule):
     """Creates an experiment Runner.
 
     Args:
@@ -59,12 +62,13 @@ def create_runner(base_dir, schedule='continuous_train_and_eval'):
     assert base_dir is not None
     # Continuously runs training and evaluation until max num_iterations is hit.
     if schedule == 'episodic':
-        return episodic_runner.EpisodicRunner(base_dir)#, episodic_runner.create_agent)
+        return episodic_runner.EpisodicRunner(base_dir)
     # Continuously runs training until max num_iterations is hit.
-    elif schedule == 'continuous_train':
-        return TrainRunner(base_dir, create_agent)
+    # elif schedule == 'continuous_train':
+    #     return TrainRunner(base_dir, create_agent)
     else:
         raise ValueError('Unknown schedule: {}'.format(schedule))
+
 
 def load_gin_configs(gin_files, gin_bindings):
     """Loads gin configuration files.
@@ -78,20 +82,50 @@ def load_gin_configs(gin_files, gin_bindings):
     gin.parse_config_files_and_bindings(gin_files,
                                         bindings=gin_bindings,
                                         skip_unknown=False)
-    
+
 def main(unused_argv):
     """Main method.
     Args:
       unused_argv: Arguments (unused).
     """
     logging.set_verbosity(logging.INFO)
-    tf.compat.v1.disable_v2_behavior()
 
     base_dir = FLAGS.base_dir
     gin_files = FLAGS.gin_files
     gin_bindings = FLAGS.gin_bindings
     load_gin_configs(gin_files, gin_bindings)
-    rnr = create_runner(base_dir)
+
+    # get hash based on base gin files, and on the gin_bindings
+    hsa = hashlib.sha1()
+    for gf in gin_files:
+        with open(gf, 'rb') as f:
+            hsa.update(f.read())
+    hsa.update(str(gin_bindings).encode('utf-8'))
+    hsh_key = hsa.hexdigest()
+
+    run_dir = os.path.join(base_dir, hsh_key)
+
+    if not os.path.isdir(run_dir):
+        os.makedirs(run_dir)
+
+    for gf in gin_files:
+        src = gf
+        dest = os.path.join(run_dir, os.path.basename(src))
+        if os.path.isfile(dest) and not filecmp.cmp(src, dest, shallow=False):
+            raise "Hash conflict in gin config files."
+        shutil.copyfile(src, dest)
+
+    pkl_dest = os.path.join(run_dir, "gin_bindings.pkl")
+    if os.path.isfile(pkl_dest):
+        with open(pkl_dest, "rb") as f:
+            pkl = pickle.load(f)
+        if str(pkl) != str(gin_bindings):
+            raise "Hash conflict in gin bindings."
+    else:
+        with open(pkl_dest, "wb") as f:
+            pickle.dump(gin_bindings, f)
+
+    rnr = create_runner(run_dir)
     rnr.run_experiment()
 
 

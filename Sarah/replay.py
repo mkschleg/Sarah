@@ -642,8 +642,8 @@ class ReplayBuffer(object):
                         element.type))
     return transition_elements
 
-  def _generate_filename(self, checkpoint_dir, name, suffix):
-    return os.path.join(checkpoint_dir, '{}_ckpt.{}.gz'.format(name, suffix))
+  def _generate_filename(self, checkpoint_dir, name):
+    return os.path.join(checkpoint_dir, '{}_ckpt.gz'.format(name))
 
   def _return_checkpointable_elements(self):
     """Return the dict of elements of the class for checkpointing.
@@ -661,7 +661,7 @@ class ReplayBuffer(object):
         checkpointable_elements[member_name] = member
     return checkpointable_elements
 
-  def save(self, checkpoint_dir, iteration_number):
+  def save(self, checkpoint_dir):
     """Save the ReplayBuffer attributes into a file.
 
     This method will save all the replay buffer's state in a single file.
@@ -678,7 +678,7 @@ class ReplayBuffer(object):
     checkpointable_elements = self._return_checkpointable_elements()
 
     for attr in checkpointable_elements:
-      filename = self._generate_filename(checkpoint_dir, attr, iteration_number)
+      filename = self._generate_filename(checkpoint_dir, attr)
       with tf.io.gfile.GFile(filename, 'wb') as f:
         with gzip.GzipFile(fileobj=f, mode='wb') as outfile:
           # Checkpoint the np arrays in self._store with np.save instead of
@@ -694,24 +694,24 @@ class ReplayBuffer(object):
           else:
             pickle.dump(self.__dict__[attr], outfile)
 
-      # After writing a checkpoint file, we garbage collect the checkpoint file
-      # that is four versions old.
-      stale_iteration_number = iteration_number - self._checkpoint_duration
+      # # After writing a checkpoint file, we garbage collect the checkpoint file
+      # # that is four versions old.
+      # stale_iteration_number = iteration_number - self._checkpoint_duration
 
-      # If keep_every has been set, we spare every keep_every'th checkpoint.
-      if (self._keep_every is not None and
-          (stale_iteration_number % self._keep_every == 0)):
-        return
+      # # If keep_every has been set, we spare every keep_every'th checkpoint.
+      # if (self._keep_every is not None and
+      #     (stale_iteration_number % self._keep_every == 0)):
+      #   return
 
-      if stale_iteration_number >= 0:
-        stale_filename = self._generate_filename(checkpoint_dir, attr,
-                                                 stale_iteration_number)
-        try:
-          tf.io.gfile.remove(stale_filename)
-        except tf.errors.NotFoundError:
-          pass
+      # if stale_iteration_number >= 0:
+      #   stale_filename = self._generate_filename(checkpoint_dir, attr,
+      #                                            stale_iteration_number)
+      #   try:
+      #     tf.io.gfile.remove(stale_filename)
+      #   except tf.errors.NotFoundError:
+      #     pass
 
-  def load(self, checkpoint_dir, suffix):
+  def load(self, checkpoint_dir):
     """Restores the object from bundle_dictionary and numpy checkpoints.
 
     Args:
@@ -726,14 +726,14 @@ class ReplayBuffer(object):
     # We will first make sure we have all the necessary files available to avoid
     # loading a partially-specified (i.e. corrupted) replay buffer.
     for attr in save_elements:
-      filename = self._generate_filename(checkpoint_dir, attr, suffix)
+      filename = self._generate_filename(checkpoint_dir, attr)
       if not tf.io.gfile.exists(filename):
         raise tf.errors.NotFoundError(None, None,
                                       'Missing file: {}'.format(filename))
     # If we've reached this point then we have verified that all expected files
     # are available.
     for attr in save_elements:
-      filename = self._generate_filename(checkpoint_dir, attr, suffix)
+      filename = self._generate_filename(checkpoint_dir, attr)
       with tf.io.gfile.GFile(filename, 'rb') as f:
         with gzip.GzipFile(fileobj=f) as infile:
           if attr.startswith(STORE_FILENAME_PREFIX):

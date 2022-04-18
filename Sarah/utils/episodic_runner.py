@@ -26,24 +26,18 @@ from absl import logging
 import dopamine
 
 # from dopamine.agents.dqn import dqn_agent
-from dopamine.agents.implicit_quantile import implicit_quantile_agent
-from dopamine.agents.rainbow import rainbow_agent
-from dopamine.discrete_domains import checkpointer
 from dopamine.discrete_domains import iteration_statistics
-from dopamine.discrete_domains import logger
-from dopamine.jax.agents.dqn import dqn_agent as jax_dqn_agent
-from dopamine.jax.agents.full_rainbow import full_rainbow_agent
-from dopamine.jax.agents.implicit_quantile import implicit_quantile_agent as jax_implicit_quantile_agent
-from dopamine.jax.agents.quantile import quantile_agent as jax_quantile_agent
-from dopamine.jax.agents.rainbow import rainbow_agent as jax_rainbow_agent
-
+# from dopamine.discrete_domains import logger
 
 import Sarah.agents
-
+from Sarah.utils import checkpointer
 from Sarah.envs import atari_lib
+from Sarah.utils import logger
 
+import jax
+from jax import numpy as jnp
 import numpy as np
-import tensorflow as tf
+# import tensorflow as tf
 
 import gin.tf
 
@@ -51,7 +45,7 @@ import gin.tf
 
 - DONE: Simplify, rip out odd decision points to clarify what is going on.
 - DONE: Checkpoint environment details.
-- TODO: Checkpoint agents every so many episodes instead of on number of steps. Maybe number of steps but always at the end of an episode.
+- DONE: Checkpoint agents every so many episodes instead of on number of steps. Maybe number of steps but always at the end of an episode.
 - TODO: Rip out TF summary writter, replace with custom data logger.
 - TODO: Test checkpointing, and make sure the environment can be checkpointed!
 
@@ -64,7 +58,6 @@ import gin.tf
 def create_agent(environment,
                  agent_name,
                  seed,
-                 summary_writer=None,
                  debug_mode=False):
     """Creates an agent.
 
@@ -87,63 +80,14 @@ def create_agent(environment,
     assert agent_name is not None
 
     print(agent_name)
-    
-    if not debug_mode:
-        summary_writer = None
 
-    if agent_name == 'jax_dqn':
-        return jax_dqn_agent.JaxDQNAgent(
-            num_actions=environment.action_space.n,
-            summary_writer=summary_writer)
-    elif agent_name == 'jax_quantile':
-        return jax_quantile_agent.JaxQuantileAgent(
-            num_actions=environment.action_space.n,
-            summary_writer=summary_writer)
-    elif agent_name == 'jax_rainbow':
-        return jax_rainbow_agent.JaxRainbowAgent(
-            num_actions=environment.action_space.n,
-            summary_writer=summary_writer)
-    elif agent_name == 'jax_full_rainbow':
-        return full_rainbow_agent.JaxFullRainbowAgent(
-            num_actions=environment.action_space.n,
-            summary_writer=summary_writer)
-    elif agent_name == 'jax_implicit_quantile':
-        return jax_implicit_quantile_agent.JaxImplicitQuantileAgent(
-            num_actions=environment.action_space.n,
-            summary_writer=summary_writer)
-    elif hasattr(Sarah.agents, agent_name):
+    if hasattr(Sarah.agents, agent_name):
         agent_module = getattr(Sarah.agents, agent_name)
         return agent_module.construct_agent(
             seed=seed,
-            num_actions=environment.action_space.n,
-            summary_writer=summary_writer)
+            num_actions=environment.action_space.n)
     else:
         raise ValueError('Unknown agent: {}'.format(agent_name))
-
-
-# @gin.configurable
-# def create_runner(base_dir, schedule='continuous_train_and_eval'):
-#     """Creates an experiment Runner.
-
-#     Args:
-#       base_dir: str, base directory for hosting all subdirectories.
-#       schedule: string, which type of Runner to use.
-
-#     Returns:
-#       runner: A `Runner` like object.
-
-#     Raises:
-#       ValueError: When an unknown schedule is encountered.
-#     """
-#     assert base_dir is not None
-#     # Continuously runs training and evaluation until max num_iterations is hit.
-#     if schedule == 'continuous_train_and_eval':
-#         return Runner(base_dir, create_agent)
-#     # Continuously runs training until max num_iterations is hit.
-#     elif schedule == 'continuous_train':
-#         return TrainRunner(base_dir, create_agent)
-#     else:
-#         raise ValueError('Unknown schedule: {}'.format(schedule))
 
 
 @gin.configurable
@@ -170,6 +114,7 @@ class EpisodicRunner(object):
                  base_dir,
                  create_environment_fn,
                  seed,
+                 log_targets=["runner", "episode"],
                  agent_name=None,
                  checkpoint_file_prefix='ckpt',
                  logging_file_prefix='log',
@@ -215,22 +160,22 @@ class EpisodicRunner(object):
         self._max_steps_per_episode = max_steps_per_episode
         self._base_dir = base_dir
         self._clip_rewards = clip_rewards
-        self._create_directories()
-        self._summary_writer = tf.compat.v1.summary.FileWriter(self._base_dir)
+
+        self._cur_episode = 0
+
+        # setup checkpointing and the such...
+        self._logger = logger.Logger(os.path.join(self._base_dir, 'logs'), log_targets)
 
         self._environment = create_environment_fn(seed=seed)
 
+
         # setup
         print("AGENT NAME:", agent_name)
-        self._agent = create_agent(self._environment, agent_name, seed,
-                                   summary_writer=self._summary_writer)
+        self._agent = create_agent(self._environment, agent_name, seed)
 
+        self._checkpoint_dir = os.path.join(self._base_dir, 'checkpoints')
         self._initialize_checkpointer_and_maybe_resume(checkpoint_file_prefix)
 
-    def _create_directories(self):
-        """Create necessary sub-directories."""
-        self._checkpoint_dir = os.path.join(self._base_dir, 'checkpoints')
-        self._logger = logger.Logger(os.path.join(self._base_dir, 'logs'))
 
     def _initialize_checkpointer_and_maybe_resume(self, checkpoint_file_prefix):
         """Reloads the latest checkpoint if it exists.
@@ -264,15 +209,18 @@ class EpisodicRunner(object):
             experiment_data = self._checkpointer.load_checkpoint(
                 latest_checkpoint_version)
             env = experiment_data['environment']
-            if self._agent.unbundle(self._checkpoint_dir, latest_checkpoint_version, experiment_data['agent']):
-            # if self._environment.unbundle(self._checkpoint_dir, latest_checkpoint_version, experiment_data['environment']) and \
-            #    self._agent.unbundle(self._checkpoint_dir, latest_checkpoint_version, experiment_data['agent']):
-               
+            chkpnt_dir = self._checkpointer._generate_dirname(latest_checkpoint_version)
+            if self._agent.unbundle(chkpnt_dir, experiment_data['agent']):
                 if experiment_data is not None:
-                    assert 'logs' in experiment_data
+                    print(experiment_data.keys())
+                    assert 'logger' in experiment_data
                     assert 'current_iteration' in experiment_data
-                    self._logger.data = experiment_data['logs']
+                    assert 'cur_episode' in experiment_data
+
+                    self._logger = experiment_data['logger']
                     self._start_iteration = experiment_data['current_iteration'] + 1
+                    self._cur_episode = experiment_data['cur_episode']
+
                     logging.info('Reloaded checkpoint and will start from iteration %d',
                                  self._start_iteration)
                 self._environment = env
@@ -286,11 +234,7 @@ class EpisodicRunner(object):
             reward: float, the last reward from the environment.
             terminal: bool, whether the last state-action led to a terminal state.
         """
-        if isinstance(self._agent, jax_dqn_agent.JaxDQNAgent):
-            self._agent.end_episode(reward, terminal)
-        else:
-            # TODO(joshgreaves): Add terminal signal to TF dopamine agents
-            self._agent.end_episode(reward)
+        self._agent.end_episode(reward, terminal)
 
     def _run_one_episode(self):
         """Executes a full trajectory of the agent interacting with the environment.
@@ -301,41 +245,62 @@ class EpisodicRunner(object):
         step_number = 0
         total_reward = 0.
 
+        actions, rewards = [], []
         # start episode
         initial_observation = self._environment.reset()
-        action = self._agent.begin_episode(initial_observation)
-        
-        is_terminal = False
+
+        action = self._agent.begin_episode(initial_observation, logger=self._logger)
 
         # Keep interacting until we reach a terminal state.
         while True:
-            
-            observation, reward, is_terminal, _ = self._environment.step(action) # run a step of the episode. Maybe make this dispatch?
+
+            observation, reward, is_terminal, info = self._environment.step(action)  # run a step of the episode. Maybe make this dispatch?
+
+            if type(action) == np.ndarray and action.shape == ():
+                actions.append(action[()])
+            else:
+                actions.append(action)
+            rewards.append(reward)
 
             total_reward += reward
             step_number += 1
 
-            if self._clip_rewards:
+            if self._clip_rewards:  # Maybe should be moved to the agent?
                 # Perform reward clipping.
                 reward = np.clip(reward, -1, 1)
 
-            if (self._environment.game_over or
-                    step_number == self._max_steps_per_episode):
+            if (is_terminal or step_number == self._max_steps_per_episode):
                 # Stop the run loop once we reach the true end of episode.
                 break
-            elif is_terminal: # Not a game over in a atari game... Should be in Atari Preprocessing if you ask me...
-                # If we lose a life but the episode is not over, signal an artificial
-                # end of episode to the agent.
-                self._end_episode(reward, is_terminal)
-                action = self._agent.begin_episode(observation)
             else:
-                action = self._agent.step(reward, observation)
+                action = self._agent.step(reward, observation, logger=self._logger)
 
         self._end_episode(reward, is_terminal)
 
+        # Log stuff...
+        self._logger.log_data("episode", "rewards", np.array(rewards, dtype="float32"))
+        if type(action) == int:
+            self._logger.log_data("episode", "actions", np.array(actions, dtype="int8"))
+        elif type(action) == float:
+            self._logger.log_data("episode", "actions", np.array(actions))
+        else:
+            self._logger.log_data("episode", "actions", actions)
+
+        def stable_rank_of_agent_nn():
+            params = self._agent.online_params
+
+            def stable_rank(x):
+                if len(x.shape) == 1:
+                    return jnp.asarray(0, dtype='bool') # can't take stable rank of a vector.
+                else:
+                    return jnp.square(jnp.linalg.norm(x, ord='fro') / jnp.linalg.norm(x, ord=2))
+
+            return jax.tree_map(stable_rank, params)
+
+        self._logger.log_data("episode:agent", "stable-rank", stable_rank_of_agent_nn)
         return step_number, total_reward
 
-    def _run_one_phase(self, min_episodes, max_total_steps, statistics, run_mode_str):
+    def _run_one_phase(self, min_episodes, max_total_steps):
         """Runs the agent/environment loop until a desired number of steps.
 
         We follow the Machado et al., 2017 convention of running full episodes,
@@ -357,23 +322,27 @@ class EpisodicRunner(object):
 
         while num_episodes < min_episodes and step_count < max_total_steps:
             episode_length, episode_return = self._run_one_episode()
-            statistics.append({
-                '{}_episode_lengths'.format(run_mode_str): episode_length,
-                '{}_episode_returns'.format(run_mode_str): episode_return
-            })
+            self._logger.log_data("runner", 'episode_length', episode_length)
+            self._logger.log_data("runner", 'episode_return', episode_return)
+            self._logger.log_data("runner", 'episode_count', self._cur_episode)
+
             step_count += episode_length
             sum_returns += episode_return
-            num_episodes += 1
+
             # We use sys.stdout.write instead of logging so as to flush frequently
             # without generating a line break.
-            sys.stdout.write('Episode: {}\t'.format(num_episodes) + 
-                             'Steps executed: {}\t'.format(step_count) +
+            sys.stdout.write('Episode: {}\t'.format(self._cur_episode) + 
+                             'Steps executed in iteration: {}\t'.format(step_count) +
                              'Episode length: {}\t'.format(episode_length) +
                              'Return: {}\n'.format(episode_return))
             sys.stdout.flush()
+
+            num_episodes += 1
+            self._cur_episode += 1
+
         return step_count, sum_returns, num_episodes
 
-    def _run_train_phase(self, statistics):
+    def _run_train_phase(self):
         """Run training phase.
 
         Args:
@@ -387,15 +356,21 @@ class EpisodicRunner(object):
         """
         # Perform the training phase, during which the agent learns.
         self._agent.eval_mode = False
+
         start_time = time.time()
         number_steps, sum_returns, num_episodes = self._run_one_phase(
-            self._episodes_per_phase, self._max_steps_per_phase, statistics, 'train')
+            self._episodes_per_phase, self._max_steps_per_phase)
+        end_time = time.time()
+
+        # average return
         average_return = sum_returns / num_episodes if num_episodes > 0 else 0.0
-        statistics.append({'train_average_return': average_return})
-        time_delta = time.time() - start_time
+        self._logger.log_data("runner", "train_average_return", average_return)
+
+        # average steps per second
+        time_delta = end_time - start_time
         average_steps_per_second = number_steps / time_delta
-        statistics.append(
-            {'train_average_steps_per_second': average_steps_per_second})
+        self._logger.log_data("runner", "train_average_steps_per_second", average_steps_per_second)
+
         logging.info('Average undiscounted return per training episode: %.2f',
                      average_return)
         logging.info('Average training steps per second: %.2f',
@@ -417,62 +392,8 @@ class EpisodicRunner(object):
         Returns:
           A dict containing summary statistics for this iteration.
         """
-        statistics = iteration_statistics.IterationStatistics()
         logging.info('Starting iteration %d', iteration)
-        num_episodes_train, average_reward_train, average_steps_per_second = (
-            self._run_train_phase(statistics))
-
-        self._save_tensorboard_summaries(iteration, num_episodes_train,
-                                         average_reward_train,
-                                         # num_episodes_eval,
-                                         # average_reward_eval,
-                                         average_steps_per_second)
-        return statistics.data_lists
-
-    def _save_tensorboard_summaries(self, iteration,
-                                    num_episodes_train,
-                                    average_reward_train,
-                                    # num_episodes_eval,
-                                    # average_reward_eval,
-                                    average_steps_per_second):
-        """Save statistics as tensorboard summaries.
-
-        Args:
-          iteration: int, The current iteration number.
-          num_episodes_train: int, number of training episodes run.
-          average_reward_train: float, The average training reward.
-          num_episodes_eval: int, number of evaluation episodes run.
-          average_reward_eval: float, The average evaluation reward.
-          average_steps_per_second: float, The average number of steps per second.
-        """
-        summary = tf.compat.v1.Summary(value=[
-            tf.compat.v1.Summary.Value(
-                tag='Train/NumEpisodes', simple_value=num_episodes_train),
-            tf.compat.v1.Summary.Value(
-                tag='Train/AverageReturns', simple_value=average_reward_train),
-            tf.compat.v1.Summary.Value(
-                tag='Train/AverageStepsPerSecond',
-                simple_value=average_steps_per_second)
-            # tf.compat.v1.Summary.Value(
-            #     tag='Eval/NumEpisodes', simple_value=num_episodes_eval),
-            # tf.compat.v1.Summary.Value(
-            #     tag='Eval/AverageReturns', simple_value=average_reward_eval)
-        ])
-        self._summary_writer.add_summary(summary, iteration)
-
-    def _save_logger_summaries(self, **kwargs):
-        print("Save...")
-
-    def _log_experiment(self, iteration, statistics):
-        """Records the results of the current iteration.
-
-        Args:
-          iteration: int, iteration number.
-          statistics: `IterationStatistics` object containing statistics to log.
-        """
-        self._logger['iteration_{:d}'.format(iteration)] = statistics
-        if iteration % self._log_every_n == 0:
-            self._logger.log_to_file(self._logging_file_prefix, iteration)
+        self._run_train_phase()
 
     def _checkpoint_experiment(self, iteration):
         """Checkpoint experiment data.
@@ -480,14 +401,22 @@ class EpisodicRunner(object):
         Args:
           iteration: int, iteration number for checkpointing.
         """
-        agent_data = self._agent.bundle_and_checkpoint(self._checkpoint_dir,
-                                                            iteration)
-        # environment_data = self._environment.bundle_and_checkpoint(self._checkpoint_dir, iteration)
+        # make logs and flush the data
+        self._logger.flush_to_file(iteration)
+
+        checkpoint_dir = self._checkpointer._generate_dirname(iteration)
+        if not os.path.isdir(checkpoint_dir):
+            os.mkdir(checkpoint_dir)
+        agent_data = self._agent.bundle_and_checkpoint(checkpoint_dir,
+                                                       iteration)
         experiment_data = {"agent": agent_data, "environment": self._environment}
         if experiment_data:
             experiment_data['current_iteration'] = iteration
-            experiment_data['logs'] = self._logger.data
+            # We don't need to checkpoing the logger as it should be empty
+            experiment_data['logger'] = self._logger
+            experiment_data['cur_episode'] = self._cur_episode
             self._checkpointer.save_checkpoint(iteration, experiment_data)
+
 
     def run_experiment(self):
         """Runs a full experiment, spread over multiple iterations."""
@@ -495,11 +424,15 @@ class EpisodicRunner(object):
 
         # for iteration in range(self._start_iteration, self._num_iterations):
         iteration = self._start_iteration
-        while True:
-            statistics = self._run_one_iteration(iteration)
-            self._log_experiment(iteration, statistics)
+        if iteration == 0:
+            # first iteration. Weird, because they
+            # decided 0 based indexing was a good idea...
             self._checkpoint_experiment(iteration)
             iteration += 1
-        self._summary_writer.flush()
+
+        while True:
+            self._run_one_iteration(iteration)
+            self._checkpoint_experiment(iteration)
+            iteration += 1
 
 

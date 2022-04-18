@@ -153,7 +153,7 @@ class AtariGame(object):
     env = gym.make(full_game_name,
                    mode=mode,
                    difficulty=difficulty,
-                   repeat_action_probability=0.0,
+                   repeat_action_probability=repeat_action_probability,
                    frameskip=1)
 
     self.environment = env.unwrapped

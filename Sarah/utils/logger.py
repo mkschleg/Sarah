@@ -23,8 +23,12 @@ import pickle
 import glob
 
 from absl import logging
+import tensorflow as tf
 
 CHECKPOINT_DURATION = 4
+
+
+
 
 
 class Logger(object):
@@ -32,38 +36,74 @@ class Logger(object):
     Custom logging.
     """
 
-    def __init__(self, logging_dir, overwrite=False):
+    def __init__(self, logging_dir, log_data_targets=[], overwrite=False):
         """Initializes Logger.
         """
         self._logging_dir = logging_dir
         self._data = {}
-        self._static_data_refs = {}
+        self._log_data_targets = log_data_targets
+        self._counts = {}
 
-        if not os.direxists(logging_dir):
+        if not os.path.isdir(logging_dir):
             os.makedirs(logging_dir)
-        elif overwrite:
-            files = glob.glob(os.path.join(logging_dir, "*"))
-            for f in files:
-                try:
-                    os.remove(f)
-                except OSError as e:
-                    print("Error: %s : %s" % (f, e.strerror))
-        else:
-            files = glob.glob(os.path.join(logging_dir, "*"))
-            if len(files) != 0:
-                raise RuntimeError("Files already in " + logging_dir)
 
-    def logdata(self, group, name, data):
+    def should_log(self, group, name):
+        for dt in self._log_data_targets:
+            if type(dt) == str:
+                if dt == group:
+                    return dt
+            elif len(dt) == 1:
+                if dt[0] == group:
+                    return dt
+            else:  # len(dt) >= 2:
+                if dt[0] == group and dt[1] == name:
+                    return dt
+            # else:
+            #     raise "Can't have data target length > 2"
+        return None
+
+    def log_data(self, group, name, data):
         """Log data for group and name.
         """
+        dt = self.should_log(group, name)
+        if dt is None:
+            return None
+
+        if len(dt) == 3 and type(dt[2]) == int:
+            if group not in self._counts.keys():
+                self._counts[group] = {}
+            if name not in self._counts[group].keys():
+                self._counts[group][name] = dt[2]
+
         if group not in self._data.keys():
             self._data[group] = {}
         if name not in self._data[group].keys():
             self._data[group][name] = []
-        self._data[group][name].append(data)
 
-    def flush(self):
-        raise NotImplementedError
+        if (len(dt) == 3) and (type(dt[2]) == int):
+            if (not (self._counts[group][name] <= 0)):
+                self._counts[group][name] -= 1
+                return
+            self._counts[group][name] = dt[2]
+
+        ld = None
+        if callable(data):
+            ld = data()
+        else:
+            ld = data
+
+        self._data[group][name].append(ld)
+
+    def flush_to_file(self, iteration_number):
+        """Save to file, and flush data.
+        """
+        filename = os.path.join(self._logging_dir,
+                                "log_{}.pkl".format(iteration_number))
+        with tf.io.gfile.GFile(filename, 'w') as fout:
+            pickle.dump(self._data, fout, protocol=pickle.HIGHEST_PROTOCOL)
+
+        self._data = {}
+
 
 
 # class Logger(object):

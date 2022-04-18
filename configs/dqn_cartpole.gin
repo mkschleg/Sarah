@@ -1,0 +1,44 @@
+
+# Hyperparameters for a simple DQN-style CartPole agent. The hyperparameters
+# chosen achieve reasonable performance.
+import Sarah.envs.gym
+import Sarah.utils.runner
+import Sarah.agents.DQN
+import Sarah.networks
+import dopamine.replay_memory.circular_replay_buffer
+import flax
+
+create_runner.schedule = 'episodic'
+EpisodicRunner.episodes_per_phase = 100
+EpisodicRunner.max_steps_per_phase = 10000
+EpisodicRunner.seed = 1029321
+EpisodicRunner.log_targets = ["runner", "episode", ["episode:agent", "stable-rank"], ["agent", "l1-update", 100]]
+
+EpisodicRunner.agent_name = 'DQN'
+
+SarahDQNAgent.observation_shape = %gym_lib.CARTPOLE_OBSERVATION_SHAPE
+SarahDQNAgent.observation_dtype = %jax_networks.CARTPOLE_OBSERVATION_DTYPE
+SarahDQNAgent.stack_size = %gym_lib.CARTPOLE_STACK_SIZE
+
+SarahDQNAgent.network = @Sarah.networks.CustClassicControlDQNNetwork
+SarahDQNAgent.gamma = 0.99
+SarahDQNAgent.update_horizon = 1
+SarahDQNAgent.min_replay_history = 500
+SarahDQNAgent.update_period = 4
+SarahDQNAgent.target_update_period = 100
+SarahDQNAgent.epsilon_fn = @dqn_agent.identity_epsilon
+SarahDQNAgent.optimizer = 'adam'
+create_optimizer.learning_rate = 0.001
+create_optimizer.eps = 3.125e-4
+
+create_agent.debug_mode = True
+
+CustClassicControlDQNNetwork.min_vals = %jax_networks.CARTPOLE_MIN_VALS
+CustClassicControlDQNNetwork.max_vals = %jax_networks.CARTPOLE_MAX_VALS
+
+ReplayBuffer.replay_capacity = 50000
+ReplayBuffer.batch_size = 128
+
+EpisodicRunner.create_environment_fn = @gym.create_seeded_gym_environment
+create_seeded_gym_environment.environment_name = 'CartPole'
+create_seeded_gym_environment.version = 'v1'

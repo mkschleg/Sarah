@@ -51,39 +51,8 @@ NATURE_DQN_DTYPE = jnp.uint8
 NATURE_DQN_STACK_SIZE = atari_lib.NATURE_DQN_STACK_SIZE
 
 
-def construct_agent(num_actions, summary_writer, seed):
-  return SarahDQNAgent(seed=seed, num_actions=num_actions, summary_writer=summary_writer)
-
-
-# @gin.configurable
-# def create_optimizer(name='adam', learning_rate=6.25e-5, beta1=0.9, beta2=0.999,
-#                      eps=1.5e-4, centered=False):
-#   """Create an optimizer for training.
-
-#   Currently, only the Adam and RMSProp optimizers are supported.
-
-#   Args:
-#     name: str, name of the optimizer to create.
-#     learning_rate: float, learning rate to use in the optimizer.
-#     beta1: float, beta1 parameter for the optimizer.
-#     beta2: float, beta2 parameter for the optimizer.
-#     eps: float, epsilon parameter for the optimizer.
-#     centered: bool, centered parameter for RMSProp.
-
-#   Returns:
-#     An optax optimizer.
-#   """
-#   if name == 'adam':
-#     logging.info('Creating Adam optimizer with settings lr=%f, beta1=%f, '
-#                  'beta2=%f, eps=%f', learning_rate, beta1, beta2, eps)
-#     return optax.adam(learning_rate, b1=beta1, b2=beta2, eps=eps)
-#   elif name == 'rmsprop':
-#     logging.info('Creating RMSProp optimizer with settings lr=%f, beta2=%f, '
-#                  'eps=%f', learning_rate, beta2, eps)
-#     return optax.rmsprop(learning_rate, decay=beta2, eps=eps,
-#                          centered=centered)
-#   else:
-#     raise ValueError('Unsupported optimizer {}'.format(name))
+def construct_agent(num_actions, seed):
+  return SarahDQNAgent(seed=seed, num_actions=num_actions)
 
 
 @functools.partial(jax.jit, static_argnums=(0, 3, 10, 11))
@@ -115,7 +84,7 @@ def train(network_def, online_params, target_params, optimizer, optimizer_state,
   updates, optimizer_state = optimizer.update(grad, optimizer_state,
                                               params=online_params)
   online_params = optax.apply_updates(online_params, updates)
-  return optimizer_state, online_params, loss
+  return optimizer_state, online_params, loss, grad, updates
 
 
 def target_q(target_network, next_states, rewards, terminals, cumulative_gamma):
@@ -158,6 +127,7 @@ def linearly_decaying_epsilon(decay_period, step, warmup_steps, epsilon):
   bonus = (1.0 - epsilon) * steps_left / decay_period
   bonus = jnp.clip(bonus, 0., 1. - epsilon)
   return epsilon + bonus
+
 
 @gin.configurable
 def identity_epsilon(unused_decay_period, unused_step, unused_warmup_steps,
@@ -203,9 +173,10 @@ def select_action(network_def, params, state, rng, num_actions, eval_mode,
 
   rng, rng1, rng2 = jax.random.split(rng, num=3)
   p = jax.random.uniform(rng1)
+  values = network_def.apply(params, state).q_values
   return rng, jnp.where(p <= epsilon,
                         jax.random.randint(rng2, (), 0, num_actions),
-                        jnp.argmax(network_def.apply(params, state).q_values))
+                        jnp.argmax(values)), values
 
 
 @gin.configurable
@@ -230,11 +201,10 @@ class SarahDQNAgent(object):
                epsilon_decay_period=250000,
                eval_mode=False,
                optimizer='adam',
-               summary_writer=None,
-               summary_writing_frequency=500,
                allow_partial_reload=False,
                loss_type='huber',
-               preprocess_fn=None):
+               preprocess_fn=None,
+               clip_rewards=True):
     """Initializes the agent and constructs the necessary components.
 
     Note: We are using the Adam optimizer by default for JaxDQN, which differs
@@ -307,6 +277,9 @@ class SarahDQNAgent(object):
     self.gamma = gamma
     self.update_horizon = update_horizon
     self.cumulative_gamma = math.pow(gamma, update_horizon)
+
+    self.clip_rewards = clip_rewards
+
     self.min_replay_history = min_replay_history
     self.target_update_period = target_update_period
     self.epsilon_fn = epsilon_fn
@@ -316,14 +289,14 @@ class SarahDQNAgent(object):
     self.update_period = update_period
     self.eval_mode = eval_mode
     self.training_steps = 0
-    self.summary_writer = summary_writer
-    self.summary_writing_frequency = summary_writing_frequency
     self.allow_partial_reload = allow_partial_reload
     self._loss_type = loss_type
 
     self._rng = jax.random.PRNGKey(seed)
     state_shape = self.observation_shape + (stack_size,)
     self.state = onp.zeros(state_shape)
+    print(state_shape)
+    print(self.state.shape)
     self._replay = self._build_replay_buffer()
     self._optimizer_name = optimizer
     self._build_networks_and_optimizer()
@@ -381,7 +354,27 @@ class SarahDQNAgent(object):
     self.state = onp.roll(self.state, -1, axis=-1)
     self.state[..., -1] = self._observation
 
-  def begin_episode(self, observation):
+  def _select_action(self, logger=None):
+    self._rng, self.action, values = select_action(self.network_def,
+                                                   self.online_params,
+                                                   self.preprocess_fn(self.state),
+                                                   self._rng,
+                                                   self.num_actions,
+                                                   self.eval_mode,
+                                                   self.epsilon_eval,
+                                                   self.epsilon_train,
+                                                   self.epsilon_decay_period,
+                                                   self.training_steps,
+                                                   self.min_replay_history,
+                                                   self.epsilon_fn)
+
+    def action_diff():
+      srt = jax.sort(values)
+      return srt[-1] - srt[-2]
+
+    logger.log_data("agent", "action-diff", action_diff)
+
+  def begin_episode(self, observation, logger=None):
     """Returns the agent's first action for this episode.
 
     Args:
@@ -394,24 +387,14 @@ class SarahDQNAgent(object):
     self._record_observation(observation)
 
     if not self.eval_mode:
-      self._train_step()
+      self._train_step(logger=logger)
 
-    self._rng, self.action = select_action(self.network_def,
-                                           self.online_params,
-                                           self.preprocess_fn(self.state),
-                                           self._rng,
-                                           self.num_actions,
-                                           self.eval_mode,
-                                           self.epsilon_eval,
-                                           self.epsilon_train,
-                                           self.epsilon_decay_period,
-                                           self.training_steps,
-                                           self.min_replay_history,
-                                           self.epsilon_fn)
+    self._select_action(logger=logger)
+
     self.action = onp.asarray(self.action)
     return self.action
 
-  def step(self, reward, observation):
+  def step(self, reward, observation, logger=None):
     """Records the most recent transition and returns the agent's next action.
 
     We store the observation of the last time step since we want to store it
@@ -429,20 +412,10 @@ class SarahDQNAgent(object):
 
     if not self.eval_mode:
       self._store_transition(self._last_observation, self.action, reward, False)
-      self._train_step()
+      self._train_step(logger=logger)
 
-    self._rng, self.action = select_action(self.network_def,
-                                           self.online_params,
-                                           self.preprocess_fn(self.state),
-                                           self._rng,
-                                           self.num_actions,
-                                           self.eval_mode,
-                                           self.epsilon_eval,
-                                           self.epsilon_train,
-                                           self.epsilon_decay_period,
-                                           self.training_steps,
-                                           self.min_replay_history,
-                                           self.epsilon_fn)
+    self._select_action(logger=logger)
+
     self.action = onp.asarray(self.action)
     return self.action
 
@@ -466,7 +439,7 @@ class SarahDQNAgent(object):
             '_store_transition function doesn\'t have episode_end arg.')
         self._store_transition(self._observation, self.action, reward, terminal)
 
-  def _train_step(self):
+  def _train_step(self, logger=None):
     """Runs a single training step.
 
     Runs training if both:
@@ -483,7 +456,7 @@ class SarahDQNAgent(object):
         self._sample_from_replay_buffer()
         states = self.preprocess_fn(self.replay_elements['state'])
         next_states = self.preprocess_fn(self.replay_elements['next_state'])
-        self.optimizer_state, self.online_params, loss = train(
+        self.optimizer_state, self.online_params, loss, grad, updates = train(
             self.network_def,
             self.online_params,
             self.target_network_params,
@@ -496,17 +469,20 @@ class SarahDQNAgent(object):
             self.replay_elements['terminal'],
             self.cumulative_gamma,
             self._loss_type)
-        if (self.summary_writer is not None and
-            self.training_steps > 0 and
-            self.training_steps % self.summary_writing_frequency == 0):
-          summary = tf.compat.v1.Summary(value=[
-              tf.compat.v1.Summary.Value(tag='HuberLoss', simple_value=loss)])
-          self.summary_writer.add_summary(summary, self.training_steps)
-          self.summary_writer.flush()
+
+        def l1_norm_update():
+          return jax.tree_map(lambda x: jnp.linalg.norm(x, ord=1), updates)
+
+        logger.log_data("agent", "l1-update", l1_norm_update)
+
       if self.training_steps % self.target_update_period == 0:
         self._sync_weights()
 
     self.training_steps += 1
+
+  def _log_info(self, logger):
+    # logger.logdata()
+    raise "not implemented yet"
 
   def _store_transition(self,
                         last_observation,
@@ -571,10 +547,8 @@ class SarahDQNAgent(object):
       A dict containing additional Python objects to be checkpointed by the
         experiment. If the checkpoint directory does not exist, returns None.
     """
-    if not tf.io.gfile.exists(checkpoint_dir):
-      return None
     # Checkpoint the out-of-graph replay buffer.
-    self._replay.save(checkpoint_dir, iteration_number)
+    self._replay.save(checkpoint_dir)
     bundle_dictionary = {
         'state': self.state,
         'RNG': self._rng,
@@ -585,7 +559,7 @@ class SarahDQNAgent(object):
     }
     return bundle_dictionary
 
-  def unbundle(self, checkpoint_dir, iteration_number, bundle_dictionary):
+  def unbundle(self, checkpoint_dir, bundle_dictionary):
     """Restores the agent from a checkpoint.
 
     Restores the agent's Python objects to those specified in bundle_dictionary,
@@ -606,9 +580,10 @@ class SarahDQNAgent(object):
     try:
       # self._replay.load() will throw a NotFoundError if it does not find all
       # the necessary files.
-      self._replay.load(checkpoint_dir, iteration_number)
+      self._replay.load(checkpoint_dir)
     except tf.errors.NotFoundError:
       if not self.allow_partial_reload:
+        logging.warning("unable to reload replay buffer.")
         # If we don't allow partial reloads, we will return False.
         return False
       logging.warning('Unable to reload replay buffer!')

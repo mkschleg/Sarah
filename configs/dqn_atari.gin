@@ -30,7 +30,7 @@ ReplayBuffer.batch_size = 32
 
 EpisodicRunner.create_environment_fn = @Sarah.envs.atari_lib.AtariGame
 AtariGame.game_name = 'Pong'
-AtariGame.repeat_action_probability = 0.0
+AtariGame.repeat_action_probability = 0.25
 EpisodicRunner.max_steps_per_episode = 27000  # Default max episode length.
 
 
