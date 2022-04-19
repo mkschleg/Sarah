@@ -28,9 +28,6 @@ import tensorflow as tf
 CHECKPOINT_DURATION = 4
 
 
-
-
-
 class Logger(object):
     """
     Custom logging.
@@ -99,7 +96,9 @@ class Logger(object):
         """
         filename = os.path.join(self._logging_dir,
                                 "log_{}.pkl".format(iteration_number))
-        with tf.io.gfile.GFile(filename, 'w') as fout:
+        print(filename)
+        # with tf.io.gfile.GFile(filename, 'wb') as fout:
+        with open(filename, "wb") as fout:
             pickle.dump(self._data, fout, protocol=pickle.HIGHEST_PROTOCOL)
 
         self._data = {}

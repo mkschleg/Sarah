@@ -9,8 +9,8 @@ import dopamine.replay_memory.circular_replay_buffer
 import flax
 
 create_runner.schedule = 'episodic'
-EpisodicRunner.episodes_per_phase = 100
-EpisodicRunner.max_steps_per_phase = 10000
+EpisodicRunner.episodes_per_phase = 500
+EpisodicRunner.max_steps_per_phase = 100000
 EpisodicRunner.seed = 1029321
 EpisodicRunner.log_targets = ["runner", "episode", ["episode:agent", "stable-rank"], ["agent", "l1-update", 100]]
 
