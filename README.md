@@ -40,3 +40,9 @@ extract and install with
 ```
 ale-import-roms location/to/extracted/roms
 ```
+
+
+To run a cartpole experiment:
+```
+python -um Sarah.train --base_dir ./tmp/cartpole --gin_files configs/dqn_cartpole.gin
+```
