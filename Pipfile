@@ -39,11 +39,12 @@ zipp = "==3.7.0"
 Pillow = "==9.0.1"
 Pygments = "==2.11.2"
 dopamine-rl = {editable = true, path = "./libs/dopamine"}
-jbw = {editable = true, path = "./libs/jelly-bean-world/api/python"}
+# jbw = {editable = true, path = "./libs/jelly-bean-world/api/python"}
 pyexputils = {ref = "2.25", git = "ssh://git@github.com/andnp/PyExpUtils"}
 rlglue = {ref = "0.4", git = "ssh://git@github.com/andnp/RlGlue"}
 pyrlenvs = {ref = "0.27", git = "ssh://git@github.com/andnp/PyRlEnvs"}
-jax = "==0.3.4"
+jax = "==0.3.10"
+ipykernel = "*"
 
 [dev-packages]
 
