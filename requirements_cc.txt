@@ -35,7 +35,7 @@ importlib-metadata==4.11.3
 importlib-resources==5.7.1
 ipykernel==6.13.1
 ipython==7.34.0
-jax==0.3.10
+jax==0.3.7+computecanada
 jaxlib==0.1.76+cuda11.cudnn82.computecanada
 jedi==0.18.1
 jupyter-client==7.3.4
