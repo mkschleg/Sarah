@@ -7,6 +7,7 @@ import Sarah.networks
 import dopamine.replay_memory.circular_replay_buffer
 import flax
 
+create_agent.debug_mode = True
 SarahDQNAgent.observation_shape = %gym_lib.MOUNTAINCAR_OBSERVATION_SHAPE
 SarahDQNAgent.observation_dtype = %jax_networks.MOUNTAINCAR_OBSERVATION_DTYPE
 SarahDQNAgent.stack_size = %gym_lib.MOUNTAINCAR_STACK_SIZE
@@ -24,15 +25,15 @@ create_optimizer.eps = 3.125e-4
 ClassicControlDQNNetwork.min_vals = %sarah_networks.MOUNTAINCAR_MIN_VALS
 ClassicControlDQNNetwork.max_vals = %sarah_networks.MOUNTAINCAR_MAX_VALS
 
-create_gym_environment.environment_name = 'MountainCar'
-create_gym_environment.version = 'v0'
-create_runner.schedule = 'episodic'
-create_agent.debug_mode = True
-EpisodicRunner.agent_name = 'DQN'
-EpisodicRunner.create_environment_fn = @gym_lib.create_gym_environment
-EpisodicRunner.num_iterations = 1
-EpisodicRunner.training_steps = 1000000
-EpisodicRunner.max_steps_per_episode = 10000  # Default max episode length.
-
 OutOfGraphReplayBuffer.replay_capacity = 50000
 OutOfGraphReplayBuffer.batch_size = 128
+
+create_seeded_gym_environment.environment_name = 'MountainCar'
+create_seeded_gym_environment.version = 'v0'
+create_runner.schedule = 'episodic'
+EpisodicRunner.agent_name = 'DQN'
+EpisodicRunner.create_environment_fn = @gym.create_seeded_gym_environment
+EpisodicRunner.episodes_per_phase = 500
+EpisodicRunner.max_steps_per_phase = 100000
+EpisodicRunner.seed = 1029321
+EpisodicRunner.log_targets = ["runner", "episode", ["episode:agent", "stable-rank"], ["agent", "l1-update", 100]]
