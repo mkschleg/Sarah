@@ -470,10 +470,12 @@ class SarahDQNAgent(object):
             self.cumulative_gamma,
             self._loss_type)
 
-        def l1_norm_update():
-          return jax.tree_map(lambda x: jnp.linalg.norm(x, ord=1), updates)
+        def l1_norm(vec):
+          return jax.tree_map(lambda x: jnp.linalg.norm(x, ord=1), vec)
 
-        logger.log_data("agent", "l1-update", l1_norm_update)
+        logger.log_data("agent", "l1-grad", l1_norm(grad))
+        logger.log_data("agent", "l1-update", l1_norm(updates))
+        logger.log_data("agent", "loss", loss)
 
       if self.training_steps % self.target_update_period == 0:
         self._sync_weights()
