@@ -248,6 +248,7 @@ class EpisodicRunner(object):
         actions, rewards = [], []
         # start episode
         initial_observation = self._environment.reset()
+        self._logger.log_data("episode", "initial_observations", initial_observation)
 
         action = self._agent.begin_episode(initial_observation, logger=self._logger)
 
