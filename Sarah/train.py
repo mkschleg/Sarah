@@ -104,6 +104,7 @@ def main(unused_argv):
     hsh_key = hsa.hexdigest()
 
     run_dir = os.path.join(base_dir, hsh_key)
+    logging.info('Run directory: %s', run_dir)
 
     if not os.path.isdir(run_dir):
         os.makedirs(run_dir)
