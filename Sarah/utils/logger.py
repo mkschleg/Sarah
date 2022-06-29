@@ -39,12 +39,24 @@ class Logger(object):
         self._logging_dir = logging_dir
         self._data = {}
         self._log_data_targets = log_data_targets
-        self._counts = {}
+        self._countdowns = {}
+
+        # Populate _countdowns based on any log_frequencies specified for targets
+        for dt in log_data_targets:
+            if type(dt) == str or len(dt) != 3 or type(dt[2]) != int:
+                continue
+
+            group = dt[0]
+            name = dt[1]
+            log_frequency = dt[2]
+            if group not in self._countdowns.keys():
+                self._countdowns[group] = {}
+            self._countdowns[group][name] = log_frequency
 
         if not os.path.isdir(logging_dir):
             os.makedirs(logging_dir)
 
-    def should_log(self, group, name):
+    def is_valid_group_and_name(self, group, name):
         for dt in self._log_data_targets:
             if type(dt) == str:
                 if dt == group:
@@ -59,31 +71,36 @@ class Logger(object):
             #     raise "Can't have data target length > 2"
         return None
 
+    def should_log(self, group, name):
+        dt = self.is_valid_group_and_name(group, name)
+        if dt is None:
+            return False
+
+        # Check against _countdowns, and reset if the countdown has hit 0
+        if (len(dt) == 3) and (type(dt[2]) == int):
+            if self._countdowns[group][name] > 0:
+                self._countdowns[group][name] -= 1
+                return False
+            log_frequency = dt[2]
+            self._countdowns[group][name] = log_frequency
+
+        return True
+
     def log_data(self, group, name, data):
         """Log data for group and name. Calls to this function will only successfully log if both:
         a) The group/name exists in _log_data_targets specified from config.
-        b) The number of calls to log_data is a multiple of dt[2], i.e. the log_every_n parameter for the data target.
-        """
-        dt = self.should_log(group, name)
-        if dt is None:
-            return None
+        b) The number of calls to log_data is a multiple of the log_frequency parameter for the data target (default to every step if unspecified).
 
-        if len(dt) == 3 and type(dt[2]) == int:
-            if group not in self._counts.keys():
-                self._counts[group] = {}
-            if name not in self._counts[group].keys():
-                self._counts[group][name] = dt[2]
+        For expensive metrics calls, data should be passed as a callable function to avoid unnecessary computation (i.e. when the group/name
+        is not turned on in the config).
+        """
+        if not self.should_log(group, name):
+            return None
 
         if group not in self._data.keys():
             self._data[group] = {}
         if name not in self._data[group].keys():
             self._data[group][name] = []
-
-        if (len(dt) == 3) and (type(dt[2]) == int):
-            if (not (self._counts[group][name] <= 0)):
-                self._counts[group][name] -= 1
-                return None
-            self._counts[group][name] = dt[2]
 
         ld = None
         if callable(data):

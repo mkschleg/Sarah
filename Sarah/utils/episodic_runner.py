@@ -133,6 +133,7 @@ class EpisodicRunner(object):
             creates a Gym environment for that problem (e.g. an Atari 2600 game).
             checkpoint_file_prefix: str, the prefix to use for checkpoint files.
             logging_file_prefix: str, prefix to use for the log files.
+            log_targes: specifies which groups and names to log, as well as their individual logging frequencies.
             log_every_n: int, the frequency for writing logs.
             num_iterations: int, the iteration number threshold (must be greater than
             start_iteration).
