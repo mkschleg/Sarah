@@ -66,6 +66,7 @@ def train(network_def, online_params, target_params, optimizer, optimizer_state,
 
     q_values = jax.vmap(q_online)(states).q_values
     q_values = jnp.squeeze(q_values)
+
     replay_chosen_q = jax.vmap(lambda x, y: x[y])(q_values, actions)
     if loss_type == 'huber':
       return jnp.mean(jax.vmap(losses.huber_loss)(target, replay_chosen_q))
@@ -470,11 +471,14 @@ class SarahDQNAgent(object):
             self.cumulative_gamma,
             self._loss_type)
 
-        def l1_norm(vec):
-          return jax.tree_map(lambda x: jnp.linalg.norm(x, ord=1), vec)
+        def l1_norm_grad():
+          return jax.tree_map(lambda x: jnp.linalg.norm(x, ord=1), grad)
 
-        logger.log_data("agent", "l1-grad", l1_norm(grad))
-        logger.log_data("agent", "l1-update", l1_norm(updates))
+        def l1_norm_updates():
+          return jax.tree_map(lambda x: jnp.linalg.norm(x, ord=1), updates)
+
+        logger.log_data("agent", "l1-grad", l1_norm_grad)
+        logger.log_data("agent", "l1-update", l1_norm_updates)
         logger.log_data("agent", "loss", loss)
 
       if self.training_steps % self.target_update_period == 0:
