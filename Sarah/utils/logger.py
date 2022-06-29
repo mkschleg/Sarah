@@ -60,7 +60,9 @@ class Logger(object):
         return None
 
     def log_data(self, group, name, data):
-        """Log data for group and name.
+        """Log data for group and name. Calls to this function will only successfully log if both:
+        a) The group/name exists in _log_data_targets specified from config.
+        b) The number of calls to log_data is a multiple of dt[2], i.e. the log_every_n parameter for the data target.
         """
         dt = self.should_log(group, name)
         if dt is None:
@@ -80,7 +82,7 @@ class Logger(object):
         if (len(dt) == 3) and (type(dt[2]) == int):
             if (not (self._counts[group][name] <= 0)):
                 self._counts[group][name] -= 1
-                return
+                return None
             self._counts[group][name] = dt[2]
 
         ld = None
