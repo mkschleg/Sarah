@@ -228,14 +228,14 @@ class EpisodicRunner(object):
             else:
                 logging.info("Can't load last checkpoint.")
 
-    def _end_episode(self, reward, terminal=True):
+    def _end_episode(self, reward, terminal=True, logger=None):
         """Finalizes an episode run.
 
         Args:
             reward: float, the last reward from the environment.
             terminal: bool, whether the last state-action led to a terminal state.
         """
-        self._agent.end_episode(reward, terminal)
+        self._agent.end_episode(reward, terminal, logger)
 
     def _run_one_episode(self):
         """Executes a full trajectory of the agent interacting with the environment.
@@ -255,7 +255,6 @@ class EpisodicRunner(object):
 
         # Keep interacting until we reach a terminal state.
         while True:
-
             observation, reward, is_terminal, info = self._environment.step(action)  # run a step of the episode. Maybe make this dispatch?
 
             if type(action) == np.ndarray and action.shape == ():
@@ -277,7 +276,7 @@ class EpisodicRunner(object):
             else:
                 action = self._agent.step(reward, observation, logger=self._logger)
 
-        self._end_episode(reward, is_terminal)
+        self._end_episode(reward, is_terminal, logger=self._logger)
 
         # Log stuff...
         self._logger.log_data("episode", "rewards", np.array(rewards, dtype="float32"))
@@ -288,18 +287,6 @@ class EpisodicRunner(object):
         else:
             self._logger.log_data("episode", "actions", actions)
 
-        def stable_rank_of_agent_nn():
-            params = self._agent.online_params
-
-            def stable_rank(x):
-                if len(x.shape) == 1:
-                    return jnp.asarray(0, dtype='bool') # can't take stable rank of a vector.
-                else:
-                    return jnp.square(jnp.linalg.norm(x, ord='fro') / jnp.linalg.norm(x, ord=2))
-
-            return jax.tree_map(stable_rank, params)
-
-        self._logger.log_data("episode:agent", "stable-rank", stable_rank_of_agent_nn)
         return step_number, total_reward
 
     def _run_one_phase(self, min_episodes, max_total_steps):

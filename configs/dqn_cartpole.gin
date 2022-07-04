@@ -12,7 +12,7 @@ create_runner.schedule = 'episodic'
 EpisodicRunner.episodes_per_phase = 500
 EpisodicRunner.max_steps_per_phase = 100000
 EpisodicRunner.seed = 1029321
-EpisodicRunner.log_targets = ["runner", "episode", ["episode:agent", "stable-rank", 100], ["agent", "l1-update", 100], ["agent", "l1-grad", 100], ["agent", "loss"]]
+EpisodicRunner.log_targets = ["runner", "episode", ["agent", "stable-rank", 100], ["agent", "l1-update", 100], ["agent", "l1-grad"]]
 
 EpisodicRunner.agent_name = 'DQN'
 

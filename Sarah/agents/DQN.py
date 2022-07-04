@@ -420,7 +420,7 @@ class SarahDQNAgent(object):
     self.action = onp.asarray(self.action)
     return self.action
 
-  def end_episode(self, reward, terminal=True):
+  def end_episode(self, reward, terminal=True, logger=None):
     """Signals the end of the episode to the agent.
 
     We store the observation of the current time step, which is the last
@@ -439,6 +439,20 @@ class SarahDQNAgent(object):
         logging.warning(
             '_store_transition function doesn\'t have episode_end arg.')
         self._store_transition(self._observation, self.action, reward, terminal)
+    
+    # Log the stable rank of the network
+    def stable_rank_of_agent_nn():
+      params = self.online_params
+
+      def stable_rank(x):
+          if len(x.shape) == 1:
+              return jnp.asarray(0, dtype='bool') # can't take stable rank of a vector.
+          else:
+              return jnp.square(jnp.linalg.norm(x, ord='fro') / jnp.linalg.norm(x, ord=2))
+
+      return jax.tree_map(stable_rank, params)
+
+    logger.log_data("agent", "stable-rank", stable_rank_of_agent_nn)
 
   def _train_step(self, logger=None):
     """Runs a single training step.
