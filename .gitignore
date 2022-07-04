@@ -2,3 +2,4 @@ log.**
 tmp/
 tmp-cc/
 .DS_Store
+*.png
