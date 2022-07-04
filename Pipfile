@@ -43,7 +43,7 @@ dopamine-rl = {editable = true, path = "./libs/dopamine"}
 pyexputils = {ref = "2.25", git = "ssh://git@github.com/andnp/PyExpUtils"}
 rlglue = {ref = "0.4", git = "ssh://git@github.com/andnp/RlGlue"}
 pyrlenvs = {ref = "0.27", git = "ssh://git@github.com/andnp/PyRlEnvs"}
-jax = "==0.3.10"
+jax = "==0.3.14"
 ipykernel = "*"
 gym-wrappers = "*"
 
