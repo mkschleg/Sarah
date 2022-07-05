@@ -39,6 +39,8 @@ gin.constant('sarah_networks.LUNAR_OBSERVATION_DTYPE', jnp.float64)
 gin.constant('sarah_networks.MOUNTAINCAR_OBSERVATION_DTYPE', jnp.float64)
 gin.constant('sarah_networks.MOUNTAINCAR_MIN_VALS', (-1.2, -0.07))
 gin.constant('sarah_networks.MOUNTAINCAR_MAX_VALS', (0.6, 0.07))
+gin.constant('sarah_networks.PENDULUM_OBSERVATION_DTYPE', jnp.float64)
+gin.constant('sarah_lib.PENDULUM_OBSERVATION_SHAPE', (2, 1))
 
 
 @gin.configurable
