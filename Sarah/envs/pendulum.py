@@ -1,10 +1,9 @@
 import numpy as np
-import gym
 from gym import spaces
 import gin
 
 @gin.configurable
-class PendulumEnv(gym.Env):
+class PendulumEnv():
   """A Wrapper class around the Pendulum environment."""
 
   def __init__(self, seed):
@@ -21,10 +20,11 @@ class PendulumEnv(gym.Env):
 
     # Three actions [-1, 0, 1]
     self.action_space = spaces.Discrete(3, start=-1)
+
     # Two observations, beta (angle?) and betadot (angular velocity)
-    self.observation_space = spaces.Box(np.array([-np.pi, -2 * np.pi]),
-                                   np.array([np.pi, 2 * np.pi]),
-                                   dtype=np.float32)
+    # self.observation_space = spaces.Box(np.array([-np.pi, -2 * np.pi]),
+    #                                np.array([np.pi, 2 * np.pi]),
+    #                                dtype=np.float32)
     
     self.last_action = None
 
