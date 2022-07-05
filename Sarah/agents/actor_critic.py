@@ -228,7 +228,7 @@ class PendulumActorCriticSoftmaxAgent():
         reward: float, the last reward from the environment.
         terminal: bool, whether the last state-action led to a terminal state.
         """
-        logger.info("agent: episode ending")
+        return
     
     def bundle_and_checkpoint(self, checkpoint_dir, iteration_number):
         pass
