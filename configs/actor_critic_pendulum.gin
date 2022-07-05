@@ -1,5 +1,5 @@
 
-# Hyperparameters for an tile coding actor-critic Pendulum agent.
+# Hyperparameters for a tile coding actor-critic Pendulum agent.
 import Sarah.envs.gym
 import Sarah.envs.pendulum
 import Sarah.utils.runner
