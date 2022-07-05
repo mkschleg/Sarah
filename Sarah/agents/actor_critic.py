@@ -1,14 +1,7 @@
 import numpy as np
-import inspect
 import gin
-import matplotlib.pyplot as plt
-
-from absl import logging
 
 import Sarah.agents.tiles3 as tc
-
-import os
-import itertools
 
 class PendulumTileCoder:
     def __init__(self, iht_size=4096, num_tilings=32, num_tiles=8):
