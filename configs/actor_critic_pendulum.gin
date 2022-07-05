@@ -1,6 +1,5 @@
 
-# Hyperparameters for a simple DQN-style CartPole agent. The hyperparameters
-# chosen achieve reasonable performance.
+# Hyperparameters for an tile coding actor-critic Pendulum agent.
 import Sarah.envs.gym
 import Sarah.envs.pendulum
 import Sarah.utils.runner
@@ -13,7 +12,6 @@ EpisodicRunner.max_steps_per_phase = 50000
 EpisodicRunner.max_steps_per_episode = 1000
 EpisodicRunner.seed = 1029321
 EpisodicRunner.log_targets = ["runner", "episode", ["agent", "l1-update", 100], ["agent", "l1-grad"]]
-
 EpisodicRunner.agent_name = 'actor_critic'
 
 create_agent.debug_mode = True
