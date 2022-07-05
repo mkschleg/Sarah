@@ -1,15 +1,14 @@
 import numpy as np
+import inspect
+import gin
 import matplotlib.pyplot as plt
+
+from absl import logging
+
+import Sarah.agents.tiles3 as tc
 
 import os
 import itertools
-from tqdm import tqdm
-
-# from rl_glue import RLGlue
-# from pendulum_env import PendulumEnvironment
-from agent import BaseAgent
-# import plot_script
-import tiles3 as tc
 
 class PendulumTileCoder:
     def __init__(self, iht_size=4096, num_tilings=32, num_tiles=8):
@@ -89,43 +88,38 @@ def compute_softmax_prob(actor_w, tiles):
     
     return softmax_prob
 
-class PendulumActorCriticSoftmaxAgent():
+def construct_agent(num_actions, seed):
+  return PendulumActorCriticSoftmaxAgent(seed=seed, num_actions=num_actions)
 
-    ## TODO: update to fit with gin config
-    def __init__(self, agent_info={}):
+@gin.configurable
+class PendulumActorCriticSoftmaxAgent():
+    def __init__(self,
+        iht_size=4096,
+        num_tilings=8,
+        num_tiles=8,
+        actor_step_size=1e-1,
+        critic_step_size=1e-0,
+        avg_reward_step_size=1e-2,
+        num_actions=3,
+        seed=99,
+    ):
         """Setup for the agent called when the experiment first starts.
 
         Set parameters needed to setup the semi-gradient TD(0) state aggregation agent.
-
-        Assume agent_info dict contains:
-        {
-            "iht_size": int
-            "num_tilings": int,
-            "num_tiles": int,
-            "actor_step_size": float,
-            "critic_step_size": float,
-            "avg_reward_step_size": float,
-            "num_actions": int,
-            "seed": int
-        }
         """
 
         # set random seed for each run
-        self.rand_generator = np.random.RandomState(agent_info.get("seed")) 
-
-        iht_size = agent_info.get("iht_size")
-        num_tilings = agent_info.get("num_tilings")
-        num_tiles = agent_info.get("num_tiles")
+        self.rand_generator = np.random.RandomState(seed) 
 
         # initialize self.tc to the tile coder we created
         self.tc = PendulumTileCoder(iht_size=iht_size, num_tilings=num_tilings, num_tiles=num_tiles)
 
         # set step-size accordingly (we normally divide actor and critic step-size by num. tilings (p.217-218 of textbook))
-        self.actor_step_size = agent_info.get("actor_step_size")/num_tilings
-        self.critic_step_size = agent_info.get("critic_step_size")/num_tilings
-        self.avg_reward_step_size = agent_info.get("avg_reward_step_size")
+        self.actor_step_size = actor_step_size/num_tilings
+        self.critic_step_size = critic_step_size/num_tilings
+        self.avg_reward_step_size = avg_reward_step_size
 
-        self.actions = list(range(agent_info.get("num_actions")))
+        self.actions = list(range(num_actions))
 
         # Set initial values of average reward, actor weights, and critic weights
         # We initialize actor weights to three times the iht_size. 
@@ -138,7 +132,7 @@ class PendulumActorCriticSoftmaxAgent():
         self.prev_tiles = None
         self.last_action = None
     
-    def agent_policy(self, active_tiles):
+    def _agent_policy(self, active_tiles):
         """ policy of the agent
         Args:
             active_tiles (Numpy array): active tiles returned by tile coder
@@ -173,134 +167,28 @@ class PendulumActorCriticSoftmaxAgent():
         ### Use self.tc to get active_tiles using angle and ang_vel (2 lines)
         # set current_action by calling self.agent_policy with active_tiles
         active_tiles = self.tc.get_tiles(angle, ang_vel)
-        current_action = self.agent_policy(active_tiles)
+        current_action = self._agent_policy(active_tiles)
 
         self.last_action = current_action
         self.prev_tiles = np.copy(active_tiles)
 
         return self.last_action
-
-class ActorCriticSoftmaxAgent(BaseAgent): 
-    def __init__(self):
-        self.rand_generator = None
-
-        self.actor_step_size = None
-        self.critic_step_size = None
-        self.avg_reward_step_size = None
-
-        self.tc = None
-
-        self.avg_reward = None
-        self.critic_w = None
-        self.actor_w = None
-
-        self.actions = None
-
-        self.softmax_prob = None
-        self.prev_tiles = None
-        self.last_action = None
     
-    def agent_init(self, agent_info={}):
-        """Setup for the agent called when the experiment first starts.
+    def step(self, reward, observation, logger=None):
+        """Records the most recent transition and returns the agent's next action.
 
-        Set parameters needed to setup the semi-gradient TD(0) state aggregation agent.
+        We store the observation of the last time step since we want to store it
+        with the reward.
 
-        Assume agent_info dict contains:
-        {
-            "iht_size": int
-            "num_tilings": int,
-            "num_tiles": int,
-            "actor_step_size": float,
-            "critic_step_size": float,
-            "avg_reward_step_size": float,
-            "num_actions": int,
-            "seed": int
-        }
-        """
-
-        # set random seed for each run
-        self.rand_generator = np.random.RandomState(agent_info.get("seed")) 
-
-        iht_size = agent_info.get("iht_size")
-        num_tilings = agent_info.get("num_tilings")
-        num_tiles = agent_info.get("num_tiles")
-
-        # initialize self.tc to the tile coder we created
-        self.tc = PendulumTileCoder(iht_size=iht_size, num_tilings=num_tilings, num_tiles=num_tiles)
-
-        # set step-size accordingly (we normally divide actor and critic step-size by num. tilings (p.217-218 of textbook))
-        self.actor_step_size = agent_info.get("actor_step_size")/num_tilings
-        self.critic_step_size = agent_info.get("critic_step_size")/num_tilings
-        self.avg_reward_step_size = agent_info.get("avg_reward_step_size")
-
-        self.actions = list(range(agent_info.get("num_actions")))
-
-        # Set initial values of average reward, actor weights, and critic weights
-        # We initialize actor weights to three times the iht_size. 
-        # Recall this is because we need to have one set of weights for each of the three actions.
-        self.avg_reward = 0.0
-        self.actor_w = np.zeros((len(self.actions), iht_size))
-        self.critic_w = np.zeros(iht_size)
-
-        self.softmax_prob = None
-        self.prev_tiles = None
-        self.last_action = None
-    
-    def agent_policy(self, active_tiles):
-        """ policy of the agent
         Args:
-            active_tiles (Numpy array): active tiles returned by tile coder
-            
-        Returns:
-            The action selected according to the policy
-        """
-        
-        # compute softmax probability
-        softmax_prob = compute_softmax_prob(self.actor_w, active_tiles)
-        
-        # Sample action from the softmax probability array
-        # self.rand_generator.choice() selects an element from the array with the specified probability
-        chosen_action = self.rand_generator.choice(self.actions, p=softmax_prob)
-        
-        # save softmax_prob as it will be useful later when updating the Actor
-        self.softmax_prob = softmax_prob
-        
-        return chosen_action
+        reward: float, the reward received from the agent's most recent action.
+        observation: numpy array, the most recent observation.
 
-    def agent_start(self, state):
-        """The first method called when the experiment starts, called after
-        the environment starts.
-        Args:
-            state (Numpy array): the state from the environment's env_start function.
         Returns:
-            The first action the agent takes.
+        int, the selected action.
         """
 
-        angle, ang_vel = state
-
-        ### Use self.tc to get active_tiles using angle and ang_vel (2 lines)
-        # set current_action by calling self.agent_policy with active_tiles
-        active_tiles = self.tc.get_tiles(angle, ang_vel)
-        current_action = self.agent_policy(active_tiles)
-
-        self.last_action = current_action
-        self.prev_tiles = np.copy(active_tiles)
-
-        return self.last_action
-
-
-    def agent_step(self, reward, state):
-        """A step taken by the agent.
-        Args:
-            reward (float): the reward received for taking the last action taken
-            state (Numpy array): the state from the environment's step based on 
-                                where the agent ended up after the
-                                last step.
-        Returns:
-            The action the agent is taking.
-        """
-
-        angle, ang_vel = state
+        angle, ang_vel = observation
 
         ### Use self.tc to get active_tiles using angle and ang_vel (1 line)
         active_tiles = self.tc.get_tiles(angle, ang_vel)
@@ -326,14 +214,182 @@ class ActorCriticSoftmaxAgent(BaseAgent):
                 self.actor_w[a][self.prev_tiles] += self.actor_step_size * delta * (0 - self.softmax_prob[a])
 
         ### set current_action by calling self.agent_policy with active_tiles (1 line)
-        current_action = self.agent_policy(active_tiles)
+        current_action = self._agent_policy(active_tiles)
 
         self.prev_tiles = active_tiles
         self.last_action = current_action
 
         return self.last_action
+    
+    def end_episode(self, reward, terminal=True, logger=None):
+        """Signals the end of the episode to the agent.
+
+        Args:
+        reward: float, the last reward from the environment.
+        terminal: bool, whether the last state-action led to a terminal state.
+        """
+        print("agent: episode ending")
+    
+    def bundle_and_checkpoint(self, checkpoint_dir, iteration_number):
+        pass
+
+    def unbundle(self, checkpoint_dir, bundle_dictionary):
+        pass
+
+# class ActorCriticSoftmaxAgent(): 
+#     def __init__(self):
+#         self.rand_generator = None
+
+#         self.actor_step_size = None
+#         self.critic_step_size = None
+#         self.avg_reward_step_size = None
+
+#         self.tc = None
+
+#         self.avg_reward = None
+#         self.critic_w = None
+#         self.actor_w = None
+
+#         self.actions = None
+
+#         self.softmax_prob = None
+#         self.prev_tiles = None
+#         self.last_action = None
+    
+#     def agent_init(self, agent_info={}):
+#         """Setup for the agent called when the experiment first starts.
+
+#         Set parameters needed to setup the semi-gradient TD(0) state aggregation agent.
+
+#         Assume agent_info dict contains:
+#         {
+#             "iht_size": int
+#             "num_tilings": int,
+#             "num_tiles": int,
+#             "actor_step_size": float,
+#             "critic_step_size": float,
+#             "avg_reward_step_size": float,
+#             "num_actions": int,
+#             "seed": int
+#         }
+#         """
+
+#         # set random seed for each run
+#         self.rand_generator = np.random.RandomState(agent_info.get("seed")) 
+
+#         iht_size = agent_info.get("iht_size")
+#         num_tilings = agent_info.get("num_tilings")
+#         num_tiles = agent_info.get("num_tiles")
+
+#         # initialize self.tc to the tile coder we created
+#         self.tc = PendulumTileCoder(iht_size=iht_size, num_tilings=num_tilings, num_tiles=num_tiles)
+
+#         # set step-size accordingly (we normally divide actor and critic step-size by num. tilings (p.217-218 of textbook))
+#         self.actor_step_size = agent_info.get("actor_step_size")/num_tilings
+#         self.critic_step_size = agent_info.get("critic_step_size")/num_tilings
+#         self.avg_reward_step_size = agent_info.get("avg_reward_step_size")
+
+#         self.actions = list(range(agent_info.get("num_actions")))
+
+#         # Set initial values of average reward, actor weights, and critic weights
+#         # We initialize actor weights to three times the iht_size. 
+#         # Recall this is because we need to have one set of weights for each of the three actions.
+#         self.avg_reward = 0.0
+#         self.actor_w = np.zeros((len(self.actions), iht_size))
+#         self.critic_w = np.zeros(iht_size)
+
+#         self.softmax_prob = None
+#         self.prev_tiles = None
+#         self.last_action = None
+    
+#     def agent_policy(self, active_tiles):
+#         """ policy of the agent
+#         Args:
+#             active_tiles (Numpy array): active tiles returned by tile coder
+            
+#         Returns:
+#             The action selected according to the policy
+#         """
+        
+#         # compute softmax probability
+#         softmax_prob = compute_softmax_prob(self.actor_w, active_tiles)
+        
+#         # Sample action from the softmax probability array
+#         # self.rand_generator.choice() selects an element from the array with the specified probability
+#         chosen_action = self.rand_generator.choice(self.actions, p=softmax_prob)
+        
+#         # save softmax_prob as it will be useful later when updating the Actor
+#         self.softmax_prob = softmax_prob
+        
+#         return chosen_action
+
+#     def agent_start(self, state):
+#         """The first method called when the experiment starts, called after
+#         the environment starts.
+#         Args:
+#             state (Numpy array): the state from the environment's env_start function.
+#         Returns:
+#             The first action the agent takes.
+#         """
+
+#         angle, ang_vel = state
+
+#         ### Use self.tc to get active_tiles using angle and ang_vel (2 lines)
+#         # set current_action by calling self.agent_policy with active_tiles
+#         active_tiles = self.tc.get_tiles(angle, ang_vel)
+#         current_action = self.agent_policy(active_tiles)
+
+#         self.last_action = current_action
+#         self.prev_tiles = np.copy(active_tiles)
+
+#         return self.last_action
 
 
-    def agent_message(self, message):
-        if message == 'get avg reward':
-            return self.avg_reward
+#     def agent_step(self, reward, state):
+#         """A step taken by the agent.
+#         Args:
+#             reward (float): the reward received for taking the last action taken
+#             state (Numpy array): the state from the environment's step based on 
+#                                 where the agent ended up after the
+#                                 last step.
+#         Returns:
+#             The action the agent is taking.
+#         """
+
+#         angle, ang_vel = state
+
+#         ### Use self.tc to get active_tiles using angle and ang_vel (1 line)
+#         active_tiles = self.tc.get_tiles(angle, ang_vel)
+
+#         ### Compute delta using Equation (1) (1 line)
+#         vp = self.critic_w[active_tiles].sum()
+#         v = self.critic_w[self.prev_tiles].sum()
+#         delta = (reward - self.avg_reward) + vp - v
+
+#         ### update average reward using Equation (2) (1 line)
+#         self.avg_reward += self.avg_reward_step_size * delta
+
+#         # update critic weights using Equation (3) and (5) (1 line)
+#         self.critic_w[self.prev_tiles] += self.critic_step_size * delta
+
+#         # update actor weights using Equation (4) and (6)
+#         # We use self.softmax_prob saved from the previous timestep
+#         # We leave it as an exercise to verify that the code below corresponds to the equation.
+#         for a in self.actions:
+#             if a == self.last_action:
+#                 self.actor_w[a][self.prev_tiles] += self.actor_step_size * delta * (1 - self.softmax_prob[a])
+#             else:
+#                 self.actor_w[a][self.prev_tiles] += self.actor_step_size * delta * (0 - self.softmax_prob[a])
+
+#         ### set current_action by calling self.agent_policy with active_tiles (1 line)
+#         current_action = self.agent_policy(active_tiles)
+
+#         self.prev_tiles = active_tiles
+#         self.last_action = current_action
+
+#         return self.last_action
+
+
+#     def agent_message(self, message):
+#         if message == 'get avg reward':
+#             return self.avg_reward
