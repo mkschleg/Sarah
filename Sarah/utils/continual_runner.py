@@ -33,6 +33,7 @@ import Sarah.agents
 from Sarah.utils import checkpointer
 from Sarah.envs import atari_lib
 from Sarah.utils import logger
+from Sarah.utils import runner
 
 import jax
 from jax import numpy as jnp
@@ -51,43 +52,6 @@ import gin.tf
 
 
 """
-
-
-
-@gin.configurable
-def create_agent(environment,
-                 agent_name,
-                 seed,
-                 debug_mode=False):
-    """Creates an agent.
-
-    Args:
-      environment: A gym environment (e.g. Atari 2600).
-      agent_name: str, name of the agent to create.
-      summary_writer: A Tensorflow summary writer to pass to the agent
-          for in-agent training statistics in Tensorboard.
-      debug_mode: bool, whether to output Tensorboard summaries.
-          If set to true, the agent will output in-episode statistics
-          to Tensorboard. Disabled by default as this results in slower
-          training.
-
-    Returns:
-      agent: An RL agent.
-
-    Raises:
-      ValueError: If `agent_name` is not in supported list.
-  """
-    assert agent_name is not None
-
-    print(agent_name)
-
-    if hasattr(Sarah.agents, agent_name):
-        agent_module = getattr(Sarah.agents, agent_name)
-        return agent_module.construct_agent(
-            seed=seed,
-            num_actions=environment.action_space.n)
-    else:
-        raise ValueError('Unknown agent: {}'.format(agent_name))
 
 
 @gin.configurable
@@ -168,7 +132,7 @@ class ContinualRunner(object):
 
         # setup
         print("AGENT NAME:", agent_name)
-        self._agent = create_agent(self._environment, agent_name, seed)
+        self._agent = runner.create_agent(self._environment, agent_name, seed)
 
         self._checkpoint_dir = os.path.join(self._base_dir, 'checkpoints')
         self._initialize_checkpointer_and_maybe_resume(checkpoint_file_prefix)
@@ -243,6 +207,7 @@ class ContinualRunner(object):
         # Keep interacting until we reach a terminal state or the steps cutoff.
         # TODO: figure out how to capture time (e.g. run_one_phase function?)
         # TODO: data structures for cumulative reward and average reward
+        new_phase = True
         while step_number < self._steps_cutoff:
             if new_phase:
                 start_time = time.time()
@@ -271,7 +236,7 @@ class ContinualRunner(object):
                 action = self._agent.step(reward, observation, logger=self._logger)
             
             if step_number % self._steps_per_phase == 0:
-                self._end_phase(self, self._steps_per_phase, actions, rewards, total_reward, start_time)
+                self._end_phase(self._steps_per_phase, actions, rewards, total_reward, start_time)
                 new_phase = True
 
         self._agent.end_episode(reward, is_terminal, logger)

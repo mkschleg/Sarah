@@ -47,6 +47,40 @@ import tensorflow as tf
 
 import gin.tf
 
+@gin.configurable
+def create_agent(environment,
+                 agent_name,
+                 seed,
+                 debug_mode=False):
+    """Creates an agent.
+
+    Args:
+      environment: A gym environment (e.g. Atari 2600).
+      agent_name: str, name of the agent to create.
+      summary_writer: A Tensorflow summary writer to pass to the agent
+          for in-agent training statistics in Tensorboard.
+      debug_mode: bool, whether to output Tensorboard summaries.
+          If set to true, the agent will output in-episode statistics
+          to Tensorboard. Disabled by default as this results in slower
+          training.
+
+    Returns:
+      agent: An RL agent.
+
+    Raises:
+      ValueError: If `agent_name` is not in supported list.
+  """
+    assert agent_name is not None
+
+    print(agent_name)
+
+    if hasattr(Sarah.agents, agent_name):
+        agent_module = getattr(Sarah.agents, agent_name)
+        return agent_module.construct_agent(
+            seed=seed,
+            num_actions=environment.action_space.n)
+    else:
+        raise ValueError('Unknown agent: {}'.format(agent_name))
 
 def load_gin_configs(gin_files, gin_bindings):
     """Loads gin configuration files.
