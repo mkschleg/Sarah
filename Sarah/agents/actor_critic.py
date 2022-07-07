@@ -1,5 +1,6 @@
 import numpy as np
 import gin
+from absl import logging
 
 import Sarah.agents.tiles3 as tc
 
@@ -224,7 +225,54 @@ class PendulumActorCriticSoftmaxAgent():
         return
     
     def bundle_and_checkpoint(self, checkpoint_dir, iteration_number):
-        pass
+        """Returns a self-contained bundle of the agent's state.
+
+        This is used for checkpointing. It will return a dictionary containing all
+        non-TensorFlow objects (to be saved into a file by the caller), and it saves
+        all TensorFlow objects into a checkpoint file.
+
+        Args:
+        checkpoint_dir: str, directory where TensorFlow objects will be saved.
+        iteration_number: int, iteration number to use for naming the checkpoint
+            file.
+
+        Returns:
+        A dict containing additional Python objects to be checkpointed by the
+            experiment. If the checkpoint directory does not exist, returns None.
+        """
+        bundle_dictionary = {
+            'RNG': self.rand_generator,
+            'tile_coder': self.tc,
+            'actor_params': self.actor_w,
+            'critic_params': self.critic_w,
+            'avg_reward': self.avg_reward
+        }
+        return bundle_dictionary
 
     def unbundle(self, checkpoint_dir, bundle_dictionary):
-        pass
+        """Restores the agent from a checkpoint.
+
+        Restores the agent's Python objects to those specified in bundle_dictionary,
+        and restores the TensorFlow objects to those specified in the
+        checkpoint_dir. If the checkpoint_dir does not exist, will not reset the
+        agent's state.
+
+        Args:
+        checkpoint_dir: str, path to the checkpoint saved.
+        iteration_number: int, checkpoint version, used when restoring the replay
+            buffer.
+        bundle_dictionary: dict, containing additional Python objects owned by
+            the agent.
+
+        Returns:
+        bool, True if unbundling was successful.
+        """
+        if bundle_dictionary is not None:
+            self.rand_generator = bundle_dictionary['RNG']
+            self.tc = bundle_dictionary['tile_coder']
+            self.avg_reward = bundle_dictionary['avg_reward']
+            self.actor_w = bundle_dictionary['actor_params']
+            self.critic_w = bundle_dictionary['critic_params']
+        else:
+            logging.warning("Unable to reload the agent's parameters!")
+        return True

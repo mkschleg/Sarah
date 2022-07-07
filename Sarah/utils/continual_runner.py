@@ -174,16 +174,16 @@ class ContinualRunner(object):
             chkpnt_dir = self._checkpointer._generate_dirname(latest_checkpoint_version)
             if self._agent.unbundle(chkpnt_dir, experiment_data['agent']):
                 if experiment_data is not None:
-                    print(experiment_data.keys())
                     assert 'logger' in experiment_data
                     assert 'cur_step' in experiment_data
+                    assert 'cur_phase' in experiment_data
 
                     self._logger = experiment_data['logger']
                     self._start_step = experiment_data['cur_step'] + 1
+                    self._cur_phase = experiment_data['cur_phase'] + 1
 
-                    logging.info('Reloaded checkpoint and will start from step %d',
-                                 self._start_step)
                 self._environment = env
+                logging.info(f'Reloaded checkpoint and will start from step {self._start_step}, env: {env}')
             else:
                 logging.info("Can't load last checkpoint.")
     
@@ -194,12 +194,13 @@ class ContinualRunner(object):
         Returns:
           The number of steps taken and the total reward.
         """
-        # step_number = 0 # TODO: get this from checkpoint?
         step_number = self._start_step
         cum_reward = 0.
         phase_reward = 0.
 
         actions, rewards = [], []
+        
+        # TODO: should not reset environment and agent if we've picked up from checkpoint?
         # start episode
         initial_observation = self._environment.reset()
         self._logger.log_data("episode", "initial_observations", initial_observation)
@@ -277,27 +278,28 @@ class ContinualRunner(object):
         self._checkpoint_experiment(self._cur_phase, step_number)
         self._cur_phase += 1
 
-    def _checkpoint_experiment(self, iteration, step_number):
+    # TODO: test that environment and agent params get properly stored and loaded from checkpoints
+    def _checkpoint_experiment(self, cur_phase, cur_step):
         """Checkpoint experiment data.
 
         Args:
           iteration: int, iteration number for checkpointing.
         """
         # make logs and flush the data
-        self._logger.flush_to_file(iteration)
+        self._logger.flush_to_file(cur_phase)
 
-        checkpoint_dir = self._checkpointer._generate_dirname(iteration)
+        checkpoint_dir = self._checkpointer._generate_dirname(cur_phase)
         if not os.path.isdir(checkpoint_dir):
             os.mkdir(checkpoint_dir)
         agent_data = self._agent.bundle_and_checkpoint(checkpoint_dir,
-                                                       iteration)
+                                                       cur_phase)
         experiment_data = {"agent": agent_data, "environment": self._environment}
         if experiment_data:
-            experiment_data['current_iteration'] = iteration
+            experiment_data['cur_phase'] = cur_phase
             # We don't need to checkpoint the logger as it should be empty
             experiment_data['logger'] = self._logger
-            experiment_data['cur_step'] = step_number
-            self._checkpointer.save_checkpoint(iteration, experiment_data)
+            experiment_data['cur_step'] = cur_step
+            self._checkpointer.save_checkpoint(cur_phase, experiment_data)
 
     def run_experiment(self):
         """Runs a full experiment, spread over multiple iterations."""
