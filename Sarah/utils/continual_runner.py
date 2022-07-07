@@ -161,7 +161,7 @@ class ContinualRunner(object):
         """
         self._checkpointer = checkpointer.Checkpointer(self._checkpoint_dir,
                                                        checkpoint_file_prefix)
-        self._cur_step = 0
+        self._start_step = 0
         self._cur_phase = 0
         # Check if checkpoint exists. Note that the existence of checkpoint 0 means
         # that we have finished iteration 0 (so we will start from iteration 1).
@@ -179,10 +179,10 @@ class ContinualRunner(object):
                     assert 'cur_step' in experiment_data
 
                     self._logger = experiment_data['logger']
-                    self._cur_step = experiment_data['cur_step'] + 1
+                    self._start_step = experiment_data['cur_step'] + 1
 
                     logging.info('Reloaded checkpoint and will start from step %d',
-                                 self._cur_step)
+                                 self._start_step)
                 self._environment = env
             else:
                 logging.info("Can't load last checkpoint.")
@@ -194,8 +194,10 @@ class ContinualRunner(object):
         Returns:
           The number of steps taken and the total reward.
         """
-        step_number = 0 # TODO: get this from checkpoint?
-        total_reward = 0.
+        # step_number = 0 # TODO: get this from checkpoint?
+        step_number = self._start_step
+        cum_reward = 0.
+        phase_reward = 0.
 
         actions, rewards = [], []
         # start episode
@@ -205,13 +207,14 @@ class ContinualRunner(object):
         action = self._agent.begin_episode(initial_observation, logger=self._logger)
 
         # Keep interacting until we reach a terminal state or the steps cutoff.
-        # TODO: figure out how to capture time (e.g. run_one_phase function?)
+        # TODO: figure out better way to capture time (e.g. run_one_phase function?)
         # TODO: data structures for cumulative reward and average reward
         new_phase = True
         while step_number < self._steps_cutoff:
             if new_phase:
                 start_time = time.time()
                 new_phase = False
+                phase_reward = 0.
 
             observation, reward, is_terminal, info = self._environment.step(action)  # run a step of the episode. Maybe make this dispatch?
 
@@ -221,7 +224,8 @@ class ContinualRunner(object):
                 actions.append(action)
             rewards.append(reward)
 
-            total_reward += reward
+            cum_reward += reward
+            phase_reward += reward
             step_number += 1
 
             if self._clip_rewards:  # Maybe should be moved to the agent?
@@ -230,25 +234,25 @@ class ContinualRunner(object):
 
             if is_terminal:
                 phase_step_count = step_number % self._steps_per_phase
-                self._end_phase(self, phase_step_count, actions, rewards, total_reward, start_time)
+                self._end_phase(step_number, phase_step_count, actions, rewards, cum_reward, phase_reward, start_time)
                 break
             else:
                 action = self._agent.step(reward, observation, logger=self._logger)
             
             if step_number % self._steps_per_phase == 0:
-                self._end_phase(self._steps_per_phase, actions, rewards, total_reward, start_time)
+                self._end_phase(step_number, self._steps_per_phase, actions, rewards, cum_reward, phase_reward, start_time)
                 new_phase = True
 
         self._agent.end_episode(reward, is_terminal, logger)
 
-        return step_number, total_reward
+        return step_number, cum_reward
 
-    def _end_phase(self, num_steps, actions, rewards, total_reward, start_time):
+    def _end_phase(self, step_number, phase_steps, actions, rewards, cum_reward, phase_reward, start_time):
         end_time = time.time()
 
-        avg_return = total_reward/num_steps
+        avg_return = phase_reward/phase_steps
         self._logger.log_data("runner", 'average_return', avg_return)
-        self._logger.log_data("runner", 'steps', self._cur_step)
+        self._logger.log_data("runner", 'steps', step_number)
         self._logger.log_data("episode", "rewards", np.array(rewards, dtype="float32"))
         if type(actions[0]) == int:
             self._logger.log_data("episode", "actions", np.array(actions, dtype="int8"))
@@ -259,164 +263,21 @@ class ContinualRunner(object):
 
         # average steps per second
         time_delta = end_time - start_time
-        average_steps_per_second = num_steps / time_delta
+        average_steps_per_second = phase_steps / time_delta
         self._logger.log_data("runner", "train_average_steps_per_second", average_steps_per_second)
 
         # We use sys.stdout.write instead of logging so as to flush frequently
         # without generating a line break.
-        sys.stdout.write('Step: {}\t'.format(self._cur_step) + 
-                         'Avg Return in Phase: {}\n'.format(avg_return))
+        sys.stdout.write('Step: {}\t'.format(step_number) +
+                         'Phase: {}\t'.format(self._cur_phase) + 
+                         'Avg Return: {}\t'.format(avg_return) +
+                         'Avg Steps/Second: {}\n'.format(average_steps_per_second))
         sys.stdout.flush()
 
-        self._checkpoint_experiment(self._cur_phase)
+        self._checkpoint_experiment(self._cur_phase, step_number)
         self._cur_phase += 1
 
-    # def _run_one_episode(self, max_total_steps):
-    #     """Executes a full trajectory of the agent interacting with the environment.
-
-    #     Returns:
-    #       The number of steps taken and the total reward.
-    #     """
-    #     step_number = 0
-    #     total_reward = 0.
-
-    #     actions, rewards = [], []
-    #     # start episode
-    #     initial_observation = self._environment.reset()
-    #     self._logger.log_data("episode", "initial_observations", initial_observation)
-
-    #     action = self._agent.begin_episode(initial_observation, logger=self._logger)
-
-    #     # Keep interacting until we reach a terminal state or max_total_steps.
-    #     while step_number < max_total_steps:
-    #         observation, reward, is_terminal, info = self._environment.step(action)  # run a step of the episode. Maybe make this dispatch?
-
-    #         if type(action) == np.ndarray and action.shape == ():
-    #             actions.append(action[()])
-    #         else:
-    #             actions.append(action)
-    #         rewards.append(reward)
-
-    #         total_reward += reward
-    #         step_number += 1
-
-    #         if self._clip_rewards:  # Maybe should be moved to the agent?
-    #             # Perform reward clipping.
-    #             reward = np.clip(reward, -1, 1)
-
-    #         if is_terminal:
-    #             break
-    #         else:
-    #             action = self._agent.step(reward, observation, logger=self._logger)
-
-    #     self._end_episode(reward, is_terminal, logger=self._logger)
-
-    #     # Log stuff...
-    #     self._logger.log_data("episode", "rewards", np.array(rewards, dtype="float32"))
-    #     if type(action) == int:
-    #         self._logger.log_data("episode", "actions", np.array(actions, dtype="int8"))
-    #     elif type(action) == float:
-    #         self._logger.log_data("episode", "actions", np.array(actions))
-    #     else:
-    #         self._logger.log_data("episode", "actions", actions)
-
-    #     return step_number, total_reward
-
-    def _run_one_phase(self, min_episodes, max_total_steps):
-        """Runs the agent/environment loop until a desired number of steps.
-
-        We follow the Machado et al., 2017 convention of running full episodes,
-        and terminating once we've run a minimum number of steps.
-
-        Args:
-            min_steps: int, minimum number of steps to generate in this phase.
-            statistics: `IterationStatistics` object which records the experimental
-            results.
-            run_mode_str: str, describes the run mode for this agent.
-
-        Returns:
-            Tuple containing the number of steps taken in this phase (int), the sum of
-               returns (float), and the number of episodes performed (int).
-        """
-        step_count = 0
-        num_episodes = 0
-        sum_returns = 0.
-
-        while num_episodes < min_episodes and step_count < max_total_steps:
-            episode_length, episode_return = self._run_one_episode()
-            self._logger.log_data("runner", 'episode_length', episode_length)
-            self._logger.log_data("runner", 'average_return', episode_return)
-            self._logger.log_data("runner", 'steps', self._cur_step)
-
-            step_count += episode_length
-            sum_returns += episode_return
-
-            # We use sys.stdout.write instead of logging so as to flush frequently
-            # without generating a line break.
-            sys.stdout.write('Step: {}\t'.format(self._cur_step) + 
-                             'Steps executed in iteration: {}\t'.format(step_count) +
-                             'Return: {}\n'.format(episode_return))
-            sys.stdout.flush()
-
-            num_episodes += 1
-            self._cur_episode += 1
-
-        return step_count, sum_returns, num_episodes
-
-    def _run_train_phase(self):
-        """Run training phase.
-
-        Args:
-          statistics: `IterationStatistics` object which records the experimental
-            results. Note - This object is modified by this method.
-
-      Returns:
-        num_episodes: int, The number of episodes run in this phase.
-        average_reward: float, The average reward generated in this phase.
-          average_steps_per_second: float, The average number of steps per second.
-        """
-        # Perform the training phase, during which the agent learns.
-        self._agent.eval_mode = False
-
-        start_time = time.time()
-        number_steps, sum_returns, num_episodes = self._run_one_phase(
-            self._episodes_per_phase, self._max_steps_per_phase)
-        end_time = time.time()
-
-        # average return
-        average_return = sum_returns / num_episodes if num_episodes > 0 else 0.0
-        self._logger.log_data("runner", "train_average_return", average_return)
-
-        # average steps per second
-        time_delta = end_time - start_time
-        average_steps_per_second = number_steps / time_delta
-        self._logger.log_data("runner", "train_average_steps_per_second", average_steps_per_second)
-
-        logging.info('Average undiscounted return per training episode: %.2f',
-                     average_return)
-        logging.info('Average training steps per second: %.2f',
-                     average_steps_per_second)
-        return num_episodes, average_return, average_steps_per_second
-
-
-    def _run_one_iteration(self, iteration):
-        """Runs one iteration of agent/environment interaction.
-
-        An iteration involves running several episodes until a certain number of
-        steps are obtained. The interleaving of train/eval phases implemented here
-        are to match the implementation of (Mnih et al., 2015).
-
-        Args:
-          iteration: int, current iteration number, used as a global_step for saving
-            Tensorboard summaries.
-
-        Returns:
-          A dict containing summary statistics for this iteration.
-        """
-        logging.info('Starting iteration %d', iteration)
-        self._run_train_phase()
-
-    def _checkpoint_experiment(self, iteration):
+    def _checkpoint_experiment(self, iteration, step_number):
         """Checkpoint experiment data.
 
         Args:
@@ -435,7 +296,7 @@ class ContinualRunner(object):
             experiment_data['current_iteration'] = iteration
             # We don't need to checkpoint the logger as it should be empty
             experiment_data['logger'] = self._logger
-            experiment_data['cur_step'] = self._cur_step
+            experiment_data['cur_step'] = step_number
             self._checkpointer.save_checkpoint(iteration, experiment_data)
 
     def run_experiment(self):
