@@ -196,59 +196,12 @@ class ContinualRunner(object):
         Returns:
           The number of steps taken and the total reward.
         """
-        step_number = self._start_step
-        cum_reward = 0.
-        phase_reward = 0.
-
-        actions, rewards = [], []
-        
-        # start episode
         initial_observation = self._environment.reset()
         self._logger.log_data("episode", "initial_observation", initial_observation)
 
         action = self._agent.begin_episode(initial_observation, logger=self._logger)
 
-        # Keep interacting until we reach a terminal state or the steps cutoff.
-        # TODO: figure out better way to capture time (e.g. run_one_phase function?)
-        # TODO: data structures for cumulative reward and average reward
-        new_phase = True
-        while step_number < self._steps_cutoff:
-            if new_phase:
-                start_time = time.time()
-                new_phase = False
-                phase_reward = 0.
-
-            observation, reward, is_terminal, info = self._environment.step(action)  # run a step of the episode. Maybe make this dispatch?
-            print("obs: ", observation)
-
-            if type(action) == np.ndarray and action.shape == ():
-                actions.append(action[()])
-            else:
-                actions.append(action)
-            rewards.append(reward)
-
-            cum_reward += reward
-            phase_reward += reward
-            step_number += 1
-
-            if self._clip_rewards:  # Maybe should be moved to the agent?
-                # Perform reward clipping.
-                reward = np.clip(reward, -1, 1)
-
-            if is_terminal:
-                phase_step_count = step_number % self._steps_per_phase
-                self._end_phase(step_number, phase_step_count, actions, rewards, cum_reward, phase_reward, start_time)
-                break
-            else:
-                action = self._agent.step(reward, observation, logger=self._logger)
-            
-            if step_number % self._steps_per_phase == 0:
-                self._end_phase(step_number, self._steps_per_phase, actions, rewards, cum_reward, phase_reward, start_time)
-                new_phase = True
-
-        self._agent.end_episode(reward, is_terminal, logger)
-
-        return step_number, cum_reward
+        return self._run_continually_loop(action)
     
     def _run_continually_from_checkpoint(self):
         """Executes a full trajectory of the agent interacting with the environment, starting
@@ -257,11 +210,6 @@ class ContinualRunner(object):
         Returns:
           The number of steps taken and the total reward.
         """
-        
-        # TODO: should not reset environment and agent if we've picked up from checkpoint?
-        # How to pick up from a previous run? Take the last observation + reward and act from there?
-        # Maybe add get_last_obs method?
-        # start episode
         last_observation, reward = self._environment.get_last_obs_and_reward()
         self._logger.log_data("episode", "initial_observation", last_observation)
 
@@ -271,6 +219,11 @@ class ContinualRunner(object):
         return self._run_continually_loop(action)
     
     def _run_continually_loop(self, action):
+        """Helper function for running an agent in an environment, given some initial action.
+
+        Returns:
+          The number of steps taken and the total reward.
+        """
         step_number = self._start_step
         cum_reward = 0.
         phase_reward = 0.
@@ -287,7 +240,6 @@ class ContinualRunner(object):
                 phase_reward = 0.
 
             observation, reward, is_terminal, info = self._environment.step(action)  # run a step of the episode. Maybe make this dispatch?
-            # print("obs: ", observation)
 
             if type(action) == np.ndarray and action.shape == ():
                 actions.append(action[()])
@@ -377,6 +329,8 @@ class ContinualRunner(object):
 
         resumed_from_checkpoint = self._initialize_checkpointer_and_maybe_resume(self._checkpoint_file_prefix)
         if resumed_from_checkpoint:
+            # TODO: checkpoint unit test - picks up from latest observation, at correct step/phase, with correct
+            # agent and env values unbundled.
             self._run_continually_from_checkpoint()
         else:
             self._run_continually()
