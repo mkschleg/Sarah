@@ -245,7 +245,10 @@ class PendulumActorCriticSoftmaxAgent():
             'tile_coder': self.tc,
             'actor_params': self.actor_w,
             'critic_params': self.critic_w,
-            'avg_reward': self.avg_reward
+            'avg_reward': self.avg_reward,
+            'prev_tiles': self.prev_tiles,
+            'last_action': self.last_action,
+            'softmax_prob': self.softmax_prob
         }
         return bundle_dictionary
 
@@ -273,6 +276,9 @@ class PendulumActorCriticSoftmaxAgent():
             self.avg_reward = bundle_dictionary['avg_reward']
             self.actor_w = bundle_dictionary['actor_params']
             self.critic_w = bundle_dictionary['critic_params']
+            self.prev_tiles = bundle_dictionary['prev_tiles']
+            self.last_action = bundle_dictionary['last_action']
+            self.softmax_prob = bundle_dictionary['softmax_prob']
         else:
             logging.warning("Unable to reload the agent's parameters!")
         return True

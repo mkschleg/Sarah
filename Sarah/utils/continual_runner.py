@@ -135,8 +135,7 @@ class ContinualRunner(object):
         self._agent = runner.create_agent(self._environment, agent_name, seed)
 
         self._checkpoint_dir = os.path.join(self._base_dir, 'checkpoints')
-        self._initialize_checkpointer_and_maybe_resume(checkpoint_file_prefix)
-
+        self._checkpoint_file_prefix = checkpoint_file_prefix
 
     def _initialize_checkpointer_and_maybe_resume(self, checkpoint_file_prefix):
         """Reloads the latest checkpoint if it exists.
@@ -163,6 +162,7 @@ class ContinualRunner(object):
                                                        checkpoint_file_prefix)
         self._start_step = 0
         self._cur_phase = 0
+        reloaded_checkpoint = False
         # Check if checkpoint exists. Note that the existence of checkpoint 0 means
         # that we have finished iteration 0 (so we will start from iteration 1).
         latest_checkpoint_version = checkpointer.get_latest_checkpoint_number(
@@ -183,11 +183,13 @@ class ContinualRunner(object):
                     self._cur_phase = experiment_data['cur_phase'] + 1
 
                 self._environment = env
+                reloaded_checkpoint = True
                 logging.info(f'Reloaded checkpoint and will start from step {self._start_step}, env: {env}')
             else:
                 logging.info("Can't load last checkpoint.")
+            
+        return reloaded_checkpoint
     
-    # TODO: checkpoint should store average reward?
     def _run_continually(self):
         """Executes a full trajectory of the agent interacting with the environment.
 
@@ -200,10 +202,9 @@ class ContinualRunner(object):
 
         actions, rewards = [], []
         
-        # TODO: should not reset environment and agent if we've picked up from checkpoint?
         # start episode
         initial_observation = self._environment.reset()
-        self._logger.log_data("episode", "initial_observations", initial_observation)
+        self._logger.log_data("episode", "initial_observation", initial_observation)
 
         action = self._agent.begin_episode(initial_observation, logger=self._logger)
 
@@ -218,6 +219,75 @@ class ContinualRunner(object):
                 phase_reward = 0.
 
             observation, reward, is_terminal, info = self._environment.step(action)  # run a step of the episode. Maybe make this dispatch?
+            print("obs: ", observation)
+
+            if type(action) == np.ndarray and action.shape == ():
+                actions.append(action[()])
+            else:
+                actions.append(action)
+            rewards.append(reward)
+
+            cum_reward += reward
+            phase_reward += reward
+            step_number += 1
+
+            if self._clip_rewards:  # Maybe should be moved to the agent?
+                # Perform reward clipping.
+                reward = np.clip(reward, -1, 1)
+
+            if is_terminal:
+                phase_step_count = step_number % self._steps_per_phase
+                self._end_phase(step_number, phase_step_count, actions, rewards, cum_reward, phase_reward, start_time)
+                break
+            else:
+                action = self._agent.step(reward, observation, logger=self._logger)
+            
+            if step_number % self._steps_per_phase == 0:
+                self._end_phase(step_number, self._steps_per_phase, actions, rewards, cum_reward, phase_reward, start_time)
+                new_phase = True
+
+        self._agent.end_episode(reward, is_terminal, logger)
+
+        return step_number, cum_reward
+    
+    def _run_continually_from_checkpoint(self):
+        """Executes a full trajectory of the agent interacting with the environment, starting
+        from the latest environment/agent checkpoint vs. from scratch.
+
+        Returns:
+          The number of steps taken and the total reward.
+        """
+        
+        # TODO: should not reset environment and agent if we've picked up from checkpoint?
+        # How to pick up from a previous run? Take the last observation + reward and act from there?
+        # Maybe add get_last_obs method?
+        # start episode
+        last_observation, reward = self._environment.get_last_obs_and_reward()
+        self._logger.log_data("episode", "initial_observation", last_observation)
+
+        # TODO: not sure whether to use step or begin_episode here
+        action = self._agent.step(reward, last_observation, logger=self._logger)
+
+        return self._run_continually_loop(action)
+    
+    def _run_continually_loop(self, action):
+        step_number = self._start_step
+        cum_reward = 0.
+        phase_reward = 0.
+        actions, rewards = [], []
+        new_phase = True
+
+        # Keep interacting until we reach a terminal state or the steps cutoff.
+        # TODO: figure out better way to capture time (e.g. run_one_phase function?)
+        # TODO: data structures for cumulative reward and average reward
+        while step_number < self._steps_cutoff:
+            if new_phase:
+                start_time = time.time()
+                new_phase = False
+                phase_reward = 0.
+
+            observation, reward, is_terminal, info = self._environment.step(action)  # run a step of the episode. Maybe make this dispatch?
+            # print("obs: ", observation)
 
             if type(action) == np.ndarray and action.shape == ():
                 actions.append(action[()])
@@ -305,10 +375,10 @@ class ContinualRunner(object):
         """Runs a full experiment, spread over multiple iterations."""
         logging.info('Beginning training...')
 
-        self._run_continually()
-        # while True:
-        #     self._run_one_iteration(iteration)
-        #     self._checkpoint_experiment(iteration)
-        #     iteration += 1
+        resumed_from_checkpoint = self._initialize_checkpointer_and_maybe_resume(self._checkpoint_file_prefix)
+        if resumed_from_checkpoint:
+            self._run_continually_from_checkpoint()
+        else:
+            self._run_continually()
 
 
