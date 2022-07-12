@@ -55,8 +55,6 @@ import gin.tf
 
 
 @gin.configurable
-# V1: Basic continuing running
-# V2: add support for checkpointing and avg reward
 class ContinualRunner(object):
     """Object that handles running continuing Dopamine experiments.
 
