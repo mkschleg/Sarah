@@ -6,14 +6,13 @@ import Sarah.utils.runner
 import Sarah.agents.actor_critic
 import flax
 
-create_runner.schedule = 'episodic'
-EpisodicRunner.episodes_per_phase = 200
-EpisodicRunner.max_steps_per_phase = 50000
-EpisodicRunner.max_steps_per_episode = 1000
-EpisodicRunner.seed = 1029321
-EpisodicRunner.log_targets = ["runner", "episode", ["agent", "l1-update", 100], ["agent", "l1-grad"]]
-EpisodicRunner.agent_name = 'actor_critic'
+create_runner.schedule = 'continuing'
+ContinualRunner.steps_per_phase = 100000
+ContinualRunner.steps_cutoff = 1000000
+ContinualRunner.seed = 99
+ContinualRunner.log_targets = ["runner"]
+ContinualRunner.agent_name = 'actor_critic'
 
 create_agent.debug_mode = True
 
-EpisodicRunner.create_environment_fn = @Sarah.envs.pendulum.PendulumEnv
+ContinualRunner.create_environment_fn = @Sarah.envs.pendulum.PendulumEnv

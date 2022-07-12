@@ -33,6 +33,7 @@ import Sarah.agents
 from Sarah.utils import checkpointer
 from Sarah.envs import atari_lib
 from Sarah.utils import logger
+from Sarah.utils import runner
 
 import jax
 from jax import numpy as jnp
@@ -51,43 +52,6 @@ import gin.tf
 
 
 """
-
-
-
-@gin.configurable
-def create_agent(environment,
-                 agent_name,
-                 seed,
-                 debug_mode=False):
-    """Creates an agent.
-
-    Args:
-      environment: A gym environment (e.g. Atari 2600).
-      agent_name: str, name of the agent to create.
-      summary_writer: A Tensorflow summary writer to pass to the agent
-          for in-agent training statistics in Tensorboard.
-      debug_mode: bool, whether to output Tensorboard summaries.
-          If set to true, the agent will output in-episode statistics
-          to Tensorboard. Disabled by default as this results in slower
-          training.
-
-    Returns:
-      agent: An RL agent.
-
-    Raises:
-      ValueError: If `agent_name` is not in supported list.
-  """
-    assert agent_name is not None
-
-    print(agent_name)
-
-    if hasattr(Sarah.agents, agent_name):
-        agent_module = getattr(Sarah.agents, agent_name)
-        return agent_module.construct_agent(
-            seed=seed,
-            num_actions=environment.action_space.n)
-    else:
-        raise ValueError('Unknown agent: {}'.format(agent_name))
 
 
 @gin.configurable
@@ -133,7 +97,7 @@ class EpisodicRunner(object):
             creates a Gym environment for that problem (e.g. an Atari 2600 game).
             checkpoint_file_prefix: str, the prefix to use for checkpoint files.
             logging_file_prefix: str, prefix to use for the log files.
-            log_targes: specifies which groups and names to log, as well as their individual logging frequencies.
+            log_targets: specifies which groups and names to log, as well as their individual logging frequencies.
             log_every_n: int, the frequency for writing logs.
             num_iterations: int, the iteration number threshold (must be greater than
             start_iteration).
@@ -172,7 +136,7 @@ class EpisodicRunner(object):
 
         # setup
         print("AGENT NAME:", agent_name)
-        self._agent = create_agent(self._environment, agent_name, seed)
+        self._agent = runner.create_agent(self._environment, agent_name, seed)
 
         self._checkpoint_dir = os.path.join(self._base_dir, 'checkpoints')
         self._initialize_checkpointer_and_maybe_resume(checkpoint_file_prefix)
@@ -401,7 +365,7 @@ class EpisodicRunner(object):
         experiment_data = {"agent": agent_data, "environment": self._environment}
         if experiment_data:
             experiment_data['current_iteration'] = iteration
-            # We don't need to checkpoing the logger as it should be empty
+            # We don't need to checkpoint the logger as it should be empty
             experiment_data['logger'] = self._logger
             experiment_data['cur_episode'] = self._cur_episode
             self._checkpointer.save_checkpoint(iteration, experiment_data)

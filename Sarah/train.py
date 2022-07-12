@@ -29,6 +29,7 @@ from absl import flags
 from absl import logging
 
 from Sarah.utils import episodic_runner
+from Sarah.utils import continual_runner
 
 flags.DEFINE_string('base_dir', None,
                     'Base directory to host all required sub-directories.')
@@ -63,6 +64,8 @@ def create_runner(base_dir, schedule):
     # Continuously runs training and evaluation until max num_iterations is hit.
     if schedule == 'episodic':
         return episodic_runner.EpisodicRunner(base_dir)
+    elif schedule == 'continuing':
+        return continual_runner.ContinualRunner(base_dir)
     # Continuously runs training until max num_iterations is hit.
     # elif schedule == 'continuous_train':
     #     return TrainRunner(base_dir, create_agent)
