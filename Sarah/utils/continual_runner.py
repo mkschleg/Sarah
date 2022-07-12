@@ -22,6 +22,7 @@ import sys
 import time
 
 from absl import logging
+from cv2 import phase
 
 import dopamine
 
@@ -129,7 +130,6 @@ class ContinualRunner(object):
 
         self._environment = create_environment_fn(seed=seed)
 
-
         # setup
         print("AGENT NAME:", agent_name)
         self._agent = runner.create_agent(self._environment, agent_name, seed)
@@ -213,7 +213,7 @@ class ContinualRunner(object):
         last_observation, reward = self._environment.get_last_obs_and_reward()
         self._logger.log_data("episode", "initial_observation", last_observation)
 
-        # TODO: not sure whether to use step or begin_episode here
+        # Use step instead of begin_episode here so that the agent's weights get updated.
         action = self._agent.step(reward, last_observation, logger=self._logger)
 
         return self._run_continually_loop(action)
@@ -225,14 +225,12 @@ class ContinualRunner(object):
           The number of steps taken and the total reward.
         """
         step_number = self._start_step
-        cum_reward = 0.
         phase_reward = 0.
         actions, rewards = [], []
         new_phase = True
 
         # Keep interacting until we reach a terminal state or the steps cutoff.
         # TODO: figure out better way to capture time (e.g. run_one_phase function?)
-        # TODO: data structures for cumulative reward and average reward
         while step_number < self._steps_cutoff:
             if new_phase:
                 start_time = time.time()
@@ -247,7 +245,6 @@ class ContinualRunner(object):
                 actions.append(action)
             rewards.append(reward)
 
-            cum_reward += reward
             phase_reward += reward
             step_number += 1
 
@@ -257,24 +254,22 @@ class ContinualRunner(object):
 
             if is_terminal:
                 phase_step_count = step_number % self._steps_per_phase
-                self._end_phase(step_number, phase_step_count, actions, rewards, cum_reward, phase_reward, start_time)
+                self._end_phase(step_number, phase_step_count, actions, rewards, phase_reward, start_time)
                 break
             else:
                 action = self._agent.step(reward, observation, logger=self._logger)
             
             if step_number % self._steps_per_phase == 0:
-                self._end_phase(step_number, self._steps_per_phase, actions, rewards, cum_reward, phase_reward, start_time)
+                self._end_phase(step_number, self._steps_per_phase, actions, rewards, phase_reward, start_time)
                 new_phase = True
 
         self._agent.end_episode(reward, is_terminal, logger)
 
-        return step_number, cum_reward
+        return step_number, phase_reward
 
-    def _end_phase(self, step_number, phase_steps, actions, rewards, cum_reward, phase_reward, start_time):
+    def _end_phase(self, step_number, phase_steps, actions, rewards, phase_reward, start_time):
         end_time = time.time()
 
-        avg_return = phase_reward/phase_steps
-        self._logger.log_data("runner", 'average_return', avg_return)
         self._logger.log_data("runner", 'steps', step_number)
         self._logger.log_data("episode", "rewards", np.array(rewards, dtype="float32"))
         if type(actions[0]) == int:
@@ -293,14 +288,13 @@ class ContinualRunner(object):
         # without generating a line break.
         sys.stdout.write('Step: {}\t'.format(step_number) +
                          'Phase: {}\t'.format(self._cur_phase) + 
-                         'Avg Return: {}\t'.format(avg_return) +
+                         'Total Reward in Phase: {}\t'.format(phase_reward) +
                          'Avg Steps/Second: {}\n'.format(average_steps_per_second))
         sys.stdout.flush()
 
         self._checkpoint_experiment(self._cur_phase, step_number)
         self._cur_phase += 1
 
-    # TODO: test that environment and agent params get properly stored and loaded from checkpoints
     def _checkpoint_experiment(self, cur_phase, cur_step):
         """Checkpoint experiment data.
 
