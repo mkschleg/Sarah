@@ -47,7 +47,6 @@ import gin.tf
 
 - DONE: Simplify, rip out odd decision points to clarify what is going on.
 - DONE: Checkpoint environment details.
-- DONE: Checkpoint agents every so many episodes instead of on number of steps. Maybe number of steps but always at the end of an episode.
 - TODO: Rip out TF summary writter, replace with custom data logger.
 - TODO: Test checkpointing, and make sure the environment can be checkpointed!
 
@@ -123,8 +122,6 @@ class ContinualRunner(object):
         self._base_dir = base_dir
         self._clip_rewards = clip_rewards
 
-        self._cur_episode = 0
-
         # setup checkpointing and the such...
         self._logger = logger.Logger(os.path.join(self._base_dir, 'logs'), log_targets)
 
@@ -197,7 +194,7 @@ class ContinualRunner(object):
           The number of steps taken and the total reward.
         """
         initial_observation = self._environment.reset()
-        self._logger.log_data("episode", "initial_observation", initial_observation)
+        self._logger.log_data("runner", "initial_observation", initial_observation)
 
         action = self._agent.begin_episode(initial_observation, logger=self._logger)
 
@@ -211,7 +208,7 @@ class ContinualRunner(object):
           The number of steps taken and the total reward.
         """
         last_observation, reward = self._environment.get_last_obs_and_reward()
-        self._logger.log_data("episode", "initial_observation", last_observation)
+        self._logger.log_data("runner", "initial_observation", last_observation)
 
         # Use step instead of begin_episode here so that the agent's weights get updated.
         action = self._agent.step(reward, last_observation, logger=self._logger)
@@ -237,7 +234,7 @@ class ContinualRunner(object):
                 new_phase = False
                 phase_reward = 0.
 
-            observation, reward, is_terminal, info = self._environment.step(action)  # run a step of the episode. Maybe make this dispatch?
+            observation, reward, is_terminal, info = self._environment.step(action)
 
             if type(action) == np.ndarray and action.shape == ():
                 actions.append(action[()])
@@ -271,13 +268,13 @@ class ContinualRunner(object):
         end_time = time.time()
 
         self._logger.log_data("runner", 'steps', step_number)
-        self._logger.log_data("episode", "rewards", np.array(rewards, dtype="float32"))
+        self._logger.log_data("runner", "rewards", np.array(rewards, dtype="float32"))
         if type(actions[0]) == int:
-            self._logger.log_data("episode", "actions", np.array(actions, dtype="int8"))
+            self._logger.log_data("runner", "actions", np.array(actions, dtype="int8"))
         elif type(actions[0]) == float:
-            self._logger.log_data("episode", "actions", np.array(actions))
+            self._logger.log_data("runner", "actions", np.array(actions))
         else:
-            self._logger.log_data("episode", "actions", actions)
+            self._logger.log_data("runner", "actions", actions)
 
         # average steps per second
         time_delta = end_time - start_time

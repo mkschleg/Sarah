@@ -194,6 +194,7 @@ class PendulumActorCriticSoftmaxAgent():
 
         ### update average reward using Equation (2) (1 line)
         self.avg_reward += self.avg_reward_step_size * delta
+        logger.log_data("agent", "avg-reward", self.avg_reward)
 
         # update critic weights using Equation (3) and (5) (1 line)
         self.critic_w[self.prev_tiles] += self.critic_step_size * delta

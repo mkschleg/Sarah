@@ -7,9 +7,9 @@ import Sarah.agents.actor_critic
 import flax
 
 create_runner.schedule = 'continuing'
-ContinualRunner.steps_per_phase = 1000
-ContinualRunner.steps_cutoff = 100000
-ContinualRunner.seed = 1029321
+ContinualRunner.steps_per_phase = 100000
+ContinualRunner.steps_cutoff = 1000000
+ContinualRunner.seed = 99
 ContinualRunner.log_targets = ["runner"]
 ContinualRunner.agent_name = 'actor_critic'
 
