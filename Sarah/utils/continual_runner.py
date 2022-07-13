@@ -221,7 +221,7 @@ class ContinualRunner(object):
         """
         step_number = self._start_step
         phase_reward = 0.
-        actions, rewards = [], []
+        phase_actions, phase_rewards = [], []
         new_phase = True
 
         # Keep interacting until we reach a terminal state or the steps cutoff.
@@ -231,14 +231,16 @@ class ContinualRunner(object):
                 start_time = time.time()
                 new_phase = False
                 phase_reward = 0.
+                phase_actions = []
+                phase_rewards = []
 
             observation, reward, is_terminal, info = self._environment.step(action)
 
             if type(action) == np.ndarray and action.shape == ():
-                actions.append(action[()])
+                phase_actions.append(action[()])
             else:
-                actions.append(action)
-            rewards.append(reward)
+                phase_actions.append(action)
+            phase_rewards.append(reward)
 
             phase_reward += reward
             step_number += 1
@@ -249,13 +251,13 @@ class ContinualRunner(object):
 
             if is_terminal:
                 phase_step_count = step_number % self._steps_per_phase
-                self._end_phase(step_number, phase_step_count, actions, rewards, phase_reward, start_time)
+                self._end_phase(step_number, phase_step_count, phase_actions, phase_rewards, phase_reward, start_time)
                 break
             else:
                 action = self._agent.step(reward, observation, logger=self._logger)
             
             if step_number % self._steps_per_phase == 0:
-                self._end_phase(step_number, self._steps_per_phase, actions, rewards, phase_reward, start_time)
+                self._end_phase(step_number, self._steps_per_phase, phase_actions, phase_rewards, phase_reward, start_time)
                 new_phase = True
 
         self._agent.end_episode(reward, is_terminal, logger)
