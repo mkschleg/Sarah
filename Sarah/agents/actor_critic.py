@@ -102,6 +102,16 @@ class PendulumActorCriticSoftmaxAgent():
         Set parameters needed to setup the semi-gradient TD(0) state aggregation agent.
         """
 
+        logging.info('Creating %s agent with the following parameters:',
+            self.__class__.__name__)
+        logging.info('\t iht_size: %f', iht_size)
+        logging.info('\t num_tilings: %f', num_tilings)
+        logging.info('\t num_tiles: %f', num_tiles)
+        logging.info('\t actor_step_size: %f', actor_step_size)
+        logging.info('\t critic_step_size: %f', critic_step_size)
+        logging.info('\t avg_reward_step_size: %f', avg_reward_step_size)
+        logging.info('\t num_actions: %f', num_actions)
+
         # set random seed for each run
         self.rand_generator = np.random.RandomState(seed) 
 
