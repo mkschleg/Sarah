@@ -7,11 +7,19 @@ import Sarah.agents.actor_critic
 import flax
 
 create_runner.schedule = 'continuing'
-ContinualRunner.steps_per_phase = 100000
-ContinualRunner.steps_cutoff = 1000000
+ContinualRunner.steps_per_phase = 5000
+ContinualRunner.steps_cutoff = 20000
 ContinualRunner.seed = 99
-ContinualRunner.log_targets = ["runner"]
+ContinualRunner.log_targets = ["runner", "agent"]
 ContinualRunner.agent_name = 'actor_critic'
+
+PendulumActorCriticSoftmaxAgent.num_tilings = 32
+PendulumActorCriticSoftmaxAgent.num_tiles = 8
+PendulumActorCriticSoftmaxAgent.actor_step_size = 0.25
+PendulumActorCriticSoftmaxAgent.critic_step_size = 2
+PendulumActorCriticSoftmaxAgent.avg_reward_step_size = 0.015625
+PendulumActorCriticSoftmaxAgent.num_actions = 3
+PendulumActorCriticSoftmaxAgent.iht_size = 4096
 
 create_agent.debug_mode = True
 
