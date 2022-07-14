@@ -370,7 +370,7 @@ class SarahDQNAgent(object):
                                                    self.epsilon_fn)
 
     def action_diff():
-      srt = jax.sort(values)
+      srt = jnp.sort(values)
       return srt[-1] - srt[-2]
 
     logger.log_data("agent", "action-diff", action_diff)
