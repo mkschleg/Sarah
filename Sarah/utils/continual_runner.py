@@ -260,7 +260,7 @@ class ContinualRunner(object):
                 self._end_phase(step_number, self._steps_per_phase, phase_actions, phase_rewards, phase_reward, start_time)
                 new_phase = True
 
-        self._agent.end_episode(reward, is_terminal, logger)
+        self._agent.end_episode(reward, is_terminal, self._logger)
 
         return step_number, phase_reward
 
