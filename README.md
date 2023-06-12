@@ -49,4 +49,4 @@ python -um Sarah.train --base_dir ./tmp/cartpole --gin_files configs/dqn_cartpol
 
 ## Compute Canada Instructions
 
-Install dependencies from `requirements_cc.txt`. Note that some of these versions might be different from the `Pipfile` since CC provides only a subset of all package versions.
+Install dependencies from `requirements_cc.txt` using `venv`. Note that some of these versions might be different from the `Pipfile` since CC provides only a subset of all package versions.
